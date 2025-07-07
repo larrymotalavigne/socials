@@ -329,7 +329,7 @@ def log_api_call(api_name: str, endpoint: str = ""):
 
             try:
                 logger.debug(f"API Call: {api_name} {endpoint or func.__name__}")
-                result = f(*args, **kwargs)
+                result = func(*args, **kwargs)
 
                 response_time = time.time() - start_time
                 logger_manager.performance.log_api_call(

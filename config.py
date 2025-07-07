@@ -46,6 +46,21 @@ class OpenAIConfig:
 
 
 @dataclass
+class OllamaConfig:
+    """Ollama API configuration."""
+    base_url: str = "http://localhost:11434"
+    model: str = "llama2"
+    timeout: int = 30
+    temperature: float = 0.8
+    max_tokens: int = 150
+
+    def __post_init__(self):
+        # Validate base URL format
+        if not self.base_url.startswith(('http://', 'https://')):
+            raise ConfigurationError("Ollama base URL must start with http:// or https://")
+
+
+@dataclass
 class InstagramConfig:
     """Instagram API configuration."""
     access_token: Optional[str] = None
@@ -124,6 +139,7 @@ class AppConfig:
     # Required fields (no defaults)
     environment: Environment
     openai: OpenAIConfig
+    ollama: OllamaConfig
     instagram: InstagramConfig
     telegram: TelegramConfig
     scheduling: SchedulingConfig
@@ -135,12 +151,15 @@ class AppConfig:
     retry_attempts: int = 3
     retry_delay: float = 1.0
     request_timeout: int = 30
+    caption_generator: str = "openai"  # "openai" or "ollama"
 
     def __post_init__(self):
         if self.retry_attempts <= 0:
             raise ConfigurationError("Retry attempts must be positive")
         if self.retry_delay < 0:
             raise ConfigurationError("Retry delay cannot be negative")
+        if self.caption_generator not in ["openai", "ollama"]:
+            raise ConfigurationError("Caption generator must be either 'openai' or 'ollama'")
 
 
 class ConfigManager:
@@ -240,6 +259,15 @@ class ConfigManager:
                 image_quality=self._get_env("OPENAI_IMAGE_QUALITY", "standard")
             )
 
+            # Load Ollama configuration
+            ollama_config = OllamaConfig(
+                base_url=self._get_env("OLLAMA_BASE_URL", "http://localhost:11434"),
+                model=self._get_env("OLLAMA_MODEL", "llama2"),
+                timeout=self._get_int_env("OLLAMA_TIMEOUT", 30),
+                temperature=self._get_float_env("OLLAMA_TEMPERATURE", 0.8),
+                max_tokens=self._get_int_env("OLLAMA_MAX_TOKENS", 150)
+            )
+
             # Load Instagram configuration
             instagram_config = InstagramConfig(
                 access_token=self._get_env("INSTAGRAM_ACCESS_TOKEN"),
@@ -285,6 +313,7 @@ class ConfigManager:
                 environment=environment,
                 debug=self._get_bool_env("DEBUG", False),
                 openai=openai_config,
+                ollama=ollama_config,
                 instagram=instagram_config,
                 telegram=telegram_config,
                 scheduling=scheduling_config,
@@ -292,7 +321,8 @@ class ConfigManager:
                 content=content_config,
                 retry_attempts=self._get_int_env("RETRY_ATTEMPTS", 3),
                 retry_delay=self._get_float_env("RETRY_DELAY", 1.0),
-                request_timeout=self._get_int_env("REQUEST_TIMEOUT", 30)
+                request_timeout=self._get_int_env("REQUEST_TIMEOUT", 30),
+                caption_generator=self._get_env("CAPTION_GENERATOR", "openai")
             )
 
             return self._config
@@ -327,6 +357,8 @@ class ConfigManager:
                 "valid": True,
                 "environment": config.environment.value,
                 "openai_configured": bool(config.openai.api_key),
+                "ollama_configured": bool(config.ollama.base_url),
+                "caption_generator": config.caption_generator,
                 "instagram_configured": bool(config.instagram.access_token),
                 "telegram_configured": bool(config.telegram.bot_token),
                 "scheduling_enabled": config.scheduling.enabled,

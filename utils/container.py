@@ -290,34 +290,98 @@ def _setup_default_services():
 
     try:
         # Register core services with their interfaces
-        from generator.image_generator import ImageGenerator
-        from generator.caption_generator import CaptionGenerator
-        from publisher.instagram_publisher import InstagramPublisher
-        from scheduler.scheduler import ContentScheduler
-        from reviewer.telegram_bot import TelegramReviewBot
+        services_to_register = []
 
-        # Register implementations
-        container.register_transient(ImageGenerator, lambda: ImageGenerator())
-        container.register_transient(CaptionGenerator, lambda: CaptionGenerator())
-        container.register_transient(InstagramPublisher, lambda: InstagramPublisher())
-        container.register_transient(ContentScheduler, lambda: ContentScheduler())
-        container.register_transient(TelegramReviewBot, lambda: TelegramReviewBot())
+        # Try to import each service individually
+        try:
+            from generator.image_generator import ImageGenerator
+            services_to_register.append(('ImageGenerator', ImageGenerator, lambda: ImageGenerator()))
+            container.logger.debug("ImageGenerator imported successfully")
+        except Exception as e:
+            container.logger.warning(f"Failed to import ImageGenerator: {str(e)}")
 
-        # Register interface mappings
-        container.register_interface(IImageGenerator, ImageGenerator)
-        container.register_interface(ICaptionGenerator, CaptionGenerator)
-        container.register_interface(IInstagramPublisher, InstagramPublisher)
-        container.register_interface(IContentScheduler, ContentScheduler)
-        container.register_interface(ITelegramBot, TelegramReviewBot)
+        try:
+            from generator.caption_generator import CaptionGenerator
+            services_to_register.append(('CaptionGenerator', CaptionGenerator, lambda: CaptionGenerator()))
+            container.logger.debug("CaptionGenerator imported successfully")
+        except Exception as e:
+            container.logger.warning(f"Failed to import CaptionGenerator: {str(e)}")
+
+        try:
+            from generator.ollama_caption_generator import OllamaCaptionGenerator
+            services_to_register.append(('OllamaCaptionGenerator', OllamaCaptionGenerator, lambda: OllamaCaptionGenerator()))
+            container.logger.debug("OllamaCaptionGenerator imported successfully")
+        except Exception as e:
+            container.logger.warning(f"Failed to import OllamaCaptionGenerator: {str(e)}")
+
+        try:
+            from publisher.instagram_publisher import InstagramPublisher
+            services_to_register.append(('InstagramPublisher', InstagramPublisher, lambda: InstagramPublisher()))
+            container.logger.debug("InstagramPublisher imported successfully")
+        except Exception as e:
+            container.logger.warning(f"Failed to import InstagramPublisher: {str(e)}")
+
+        try:
+            from scheduler.scheduler import ContentScheduler
+            services_to_register.append(('ContentScheduler', ContentScheduler, lambda: ContentScheduler()))
+            container.logger.debug("ContentScheduler imported successfully")
+        except Exception as e:
+            container.logger.warning(f"Failed to import ContentScheduler: {str(e)}")
+
+        try:
+            from reviewer.telegram_bot import TelegramReviewBot
+            services_to_register.append(('TelegramReviewBot', TelegramReviewBot, lambda: TelegramReviewBot()))
+            container.logger.debug("TelegramReviewBot imported successfully")
+        except Exception as e:
+            container.logger.warning(f"Failed to import TelegramReviewBot: {str(e)}")
+
+        # Register successfully imported services
+        for name, service_type, factory in services_to_register:
+            try:
+                container.register_transient(service_type, factory)
+                container.logger.debug(f"Registered {name} successfully")
+            except Exception as e:
+                container.logger.warning(f"Failed to register {name}: {str(e)}")
+
+        # Register caption generator factory that selects based on configuration
+        def caption_generator_factory():
+            from config import get_config
+            config = get_config()
+            if config.caption_generator == "ollama":
+                return OllamaCaptionGenerator()
+            else:
+                return CaptionGenerator()
+
+        container.register_transient('caption_generator', caption_generator_factory)
+
+        # Register interface mappings for successfully imported services
+        for name, service_type, factory in services_to_register:
+            try:
+                if name == 'ImageGenerator':
+                    container.register_interface(IImageGenerator, service_type)
+                elif name == 'InstagramPublisher':
+                    container.register_interface(IInstagramPublisher, service_type)
+                elif name == 'ContentScheduler':
+                    container.register_interface(IContentScheduler, service_type)
+                elif name == 'TelegramReviewBot':
+                    container.register_interface(ITelegramBot, service_type)
+            except Exception as e:
+                container.logger.warning(f"Failed to register interface for {name}: {str(e)}")
+
+        # Map ICaptionGenerator to the factory service key
+        container._interfaces[container._get_service_key(ICaptionGenerator)] = 'caption_generator'
 
         # Register configuration as singleton
-        from config import get_config
-        container.register_singleton('config', get_config())
+        try:
+            from config import get_config
+            container.register_singleton('config', get_config())
+        except Exception as e:
+            container.logger.warning(f"Failed to register config: {str(e)}")
 
-        container.logger.info("Default services registered successfully")
+        container.logger.info("Default services registration completed")
 
     except Exception as e:
-        container.logger.warning(f"Some default services could not be registered: {str(e)}")
+        container.logger.error(f"Critical error in service registration: {str(e)}")
 
 
 # Convenience functions

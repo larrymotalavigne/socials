@@ -93,7 +93,7 @@ class ImageGenerator:
     )
     @log_api_call("OpenAI", "image_generation")
     @log_execution_time
-    def _call_openai_api(self, prompt: str) -> Dict[str, Any]:
+    def _call_openai_api(self, prompt: str, size: str, quality: str) -> Dict[str, Any]:
         """Make API call to OpenAI for image generation."""
         try:
             self.logger.debug(f"Generating image with prompt: {prompt[:100]}...")
@@ -101,8 +101,8 @@ class ImageGenerator:
             response = self.client.images.generate(
                 model=self.config.openai.model_image,
                 prompt=prompt,
-                size=self.config.openai.image_size,
-                quality=self.config.openai.image_quality,
+                size=size,
+                quality=quality,
                 n=1,
                 response_format="b64_json"
             )
@@ -169,6 +169,8 @@ class ImageGenerator:
         self, 
         prompt: str, 
         output_path: Optional[str] = None,
+        size: Optional[str] = None,
+        quality: Optional[str] = None,
         **kwargs
     ) -> Dict[str, Any]:
         """Generate an image using AI based on the given prompt.
@@ -176,6 +178,8 @@ class ImageGenerator:
         Args:
             prompt: Text description of the image to generate
             output_path: Path where to save the generated image
+            size: Image size (1024x1024, 1792x1024, 1024x1792). Uses config default if not provided
+            quality: Image quality (standard, hd). Uses config default if not provided
             **kwargs: Additional parameters for future extensibility
 
         Returns:
@@ -200,18 +204,38 @@ class ImageGenerator:
 
             validated_path = self._validate_output_path(output_path)
 
+            # Use provided parameters or fall back to config defaults
+            image_size = size or self.config.openai.image_size
+            image_quality = quality or self.config.openai.image_quality
+
+            # Validate size and quality parameters
+            valid_sizes = ["1024x1024", "1792x1024", "1024x1792"]
+            if image_size not in valid_sizes:
+                raise ValidationError(
+                    f"Invalid image size '{image_size}'. Must be one of: {', '.join(valid_sizes)}",
+                    field="size"
+                )
+
+            valid_qualities = ["standard", "hd"]
+            if image_quality not in valid_qualities:
+                raise ValidationError(
+                    f"Invalid image quality '{image_quality}'. Must be one of: {', '.join(valid_qualities)}",
+                    field="quality"
+                )
+
             self.logger.info(
                 f"Starting image generation",
                 extra={'extra_data': {
                     'prompt_length': len(prompt),
                     'output_path': str(validated_path),
                     'model': self.config.openai.model_image,
-                    'size': self.config.openai.image_size
+                    'size': image_size,
+                    'quality': image_quality
                 }}
             )
 
             # Generate image via OpenAI API
-            api_response = self._call_openai_api(prompt)
+            api_response = self._call_openai_api(prompt, image_size, image_quality)
 
             # Save image to file
             self._save_image(api_response["image_data"], validated_path)
@@ -223,8 +247,8 @@ class ImageGenerator:
                 "metadata": {
                     "original_prompt": prompt,
                     "model": self.config.openai.model_image,
-                    "size": self.config.openai.image_size,
-                    "quality": self.config.openai.image_quality,
+                    "size": image_size,
+                    "quality": image_quality,
                     "generated_at": datetime.now().isoformat(),
                     "file_size": validated_path.stat().st_size
                 }
