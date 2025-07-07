@@ -1,15 +1,15 @@
-# AI Instagram Publisher - Comprehensive Documentation
+# AI Socials - Comprehensive Documentation
 
 ## 🎯 Project Overview
 
-The AI Instagram Publisher is a sophisticated, production-ready application that automates the creation and publishing of Instagram content using artificial intelligence. The project combines advanced AI content generation, robust security practices, comprehensive testing, and enterprise-grade architecture patterns.
+AI Socials is a sophisticated, production-ready application that automates the creation and publishing of social media content using artificial intelligence. The project combines advanced AI content generation, robust security practices, comprehensive testing, and enterprise-grade architecture patterns.
 
 ## 🏗️ Architecture Overview
 
 ### Core Components
 
 ```
-AI Instagram Publisher
+AI Socials
 ├── 🧠 Content Generation
 │   ├── Image Generation (OpenAI DALL-E)
 │   ├── Caption Generation (OpenAI GPT / Ollama)

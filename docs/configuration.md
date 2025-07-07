@@ -2,7 +2,7 @@
 
 ## 📋 Overview
 
-The AI Instagram Publisher uses a comprehensive configuration system that supports multiple environments, secure credential management, and fine-tuned control over all aspects of content generation and publishing.
+AI Socials uses a comprehensive configuration system that supports multiple environments, secure credential management, and fine-tuned control over all aspects of content generation and publishing.
 
 ## 🏗️ Configuration Architecture
 

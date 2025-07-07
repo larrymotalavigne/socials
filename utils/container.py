@@ -1,5 +1,5 @@
 """
-Dependency Injection Container for AI Instagram Publisher.
+Dependency Injection Container for AI Socials.
 
 This module provides a simple but effective dependency injection container
 for managing dependencies and improving testability.

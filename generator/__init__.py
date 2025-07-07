@@ -1,5 +1,5 @@
 """
-Generator module for AI Instagram Publisher.
+Generator module for AI Socials.
 
 This module provides factory functions for creating content generators
 with automatic selection based on configuration.
@@ -11,7 +11,7 @@ from utils.container import get_container, ICaptionGenerator, IImageGenerator
 
 def get_caption_generator() -> ICaptionGenerator:
     """Get the configured caption generator (OpenAI or Ollama).
-    
+
     Returns:
         Caption generator instance based on configuration
     """
@@ -21,7 +21,7 @@ def get_caption_generator() -> ICaptionGenerator:
 
 def get_image_generator() -> IImageGenerator:
     """Get the image generator.
-    
+
     Returns:
         Image generator instance
     """
@@ -31,12 +31,12 @@ def get_image_generator() -> IImageGenerator:
 
 def test_caption_generators() -> Dict[str, Any]:
     """Test all available caption generators.
-    
+
     Returns:
         Dictionary with test results for each generator
     """
     results = {}
-    
+
     try:
         # Test OpenAI generator
         from generator.caption_generator import CaptionGenerator
@@ -47,7 +47,7 @@ def test_caption_generators() -> Dict[str, Any]:
             'connected': False,
             'error': f'Failed to initialize: {str(e)}'
         }
-    
+
     try:
         # Test Ollama generator
         from generator.ollama_caption_generator import OllamaCaptionGenerator
@@ -58,13 +58,13 @@ def test_caption_generators() -> Dict[str, Any]:
             'connected': False,
             'error': f'Failed to initialize: {str(e)}'
         }
-    
+
     return results
 
 
 def get_available_caption_generators() -> Dict[str, str]:
     """Get list of available caption generators.
-    
+
     Returns:
         Dictionary mapping generator names to descriptions
     """

@@ -1,6 +1,6 @@
-# 🤖📸 AI Instagram Publisher
+# 🤖📸 AI Socials
 
-A Python-based application that automatically generates visually engaging content using AI (images + captions) and publishes it to Instagram — all on autopilot.
+A Python-based application that automatically generates visually engaging content using AI (images + captions) and publishes it to social media platforms — all on autopilot.
 
 ---
 
@@ -17,7 +17,7 @@ A Python-based application that automatically generates visually engaging conten
 ## 📂 Project Structure
 
 ```bash
-instagram_ai_publisher/
+ai_socials/
 ├── main.py                      # Main orchestrator script
 ├── config.py                   # App settings, .env loader
 ├── scheduler.py                # Cron-like scheduling (optional)

@@ -1,5 +1,5 @@
 """
-Configuration management system for AI Instagram Publisher.
+Configuration management system for AI Socials.
 
 This module provides comprehensive configuration management with validation,
 environment support, and proper error handling.

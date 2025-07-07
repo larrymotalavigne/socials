@@ -1,5 +1,5 @@
 """
-Centralized logging system for AI Instagram Publisher.
+Centralized logging system for AI Socials.
 
 This module provides structured logging with rotation, performance tracking,
 and integration with the configuration system.

@@ -47,7 +47,7 @@ class ApprovalStatus(Enum):
 
 class ContentReview:
     """Represents a content review request."""
-    
+
     def __init__(
         self,
         review_id: str,
@@ -74,7 +74,7 @@ class ContentReview:
 
 class TelegramReviewBot:
     """Telegram bot for content review and approval."""
-    
+
     def __init__(self):
         """Initialize the Telegram bot."""
         self.logger = get_logger(__name__)
@@ -83,30 +83,30 @@ class TelegramReviewBot:
         self.reviews: Dict[str, ContentReview] = {}
         self.review_history: List[Dict[str, Any]] = []
         self._initialize_bot()
-    
+
     def _initialize_bot(self):
         """Initialize the Telegram bot application."""
         try:
             if not self.config.telegram.bot_token:
                 raise TelegramError("Telegram bot token is required")
-            
+
             # Create application
             self.application = Application.builder().token(
                 self.config.telegram.bot_token
             ).build()
-            
+
             # Add handlers
             self._add_handlers()
-            
+
             self.logger.info("Telegram bot initialized successfully")
-            
+
         except Exception as e:
             self.logger.error(f"Failed to initialize Telegram bot: {str(e)}")
             raise TelegramError(
                 "Failed to initialize Telegram bot",
                 original_exception=e
             )
-    
+
     def _add_handlers(self):
         """Add command and callback handlers to the bot."""
         # Command handlers
@@ -115,30 +115,30 @@ class TelegramReviewBot:
         self.application.add_handler(CommandHandler("status", self._status_command))
         self.application.add_handler(CommandHandler("history", self._history_command))
         self.application.add_handler(CommandHandler("pending", self._pending_command))
-        
+
         # Callback query handlers for inline keyboards
         self.application.add_handler(CallbackQueryHandler(
             self._handle_approval_callback,
             pattern=r"^(approve|reject|modify)_.*"
         ))
-        
+
         self.application.add_handler(CallbackQueryHandler(
             self._handle_modification_callback,
             pattern=r"^mod_.*"
         ))
-        
+
         # Message handlers for text modifications
         self.application.add_handler(MessageHandler(
             filters.TEXT & ~filters.COMMAND,
             self._handle_text_modification
         ))
-    
+
     async def _start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /start command."""
         user = update.effective_user
-        
+
         welcome_message = f"""
-🤖 Welcome to AI Instagram Publisher Review Bot!
+🤖 Welcome to AI Socials Review Bot!
 
 Hello {user.first_name}! I'm here to help you review and approve AI-generated content before it gets published to Instagram.
 
@@ -150,9 +150,9 @@ Available commands:
 
 I'll send you content for review automatically when new content is generated.
         """
-        
+
         await update.message.reply_text(welcome_message.strip())
-        
+
         self.logger.info(
             f"User {user.username} ({user.id}) started the bot",
             extra={'extra_data': {
@@ -161,7 +161,7 @@ I'll send you content for review automatically when new content is generated.
                 'first_name': user.first_name
             }}
         )
-    
+
     async def _help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /help command."""
         help_message = """
@@ -191,13 +191,13 @@ I'll send you content for review automatically when new content is generated.
 • You can review multiple items simultaneously
 • All actions are logged for audit purposes
         """
-        
+
         await update.message.reply_text(help_message.strip(), parse_mode='Markdown')
-    
+
     async def _status_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /status command."""
         stats = self._get_review_statistics()
-        
+
         status_message = f"""
 📊 **Review Bot Status**
 
@@ -217,93 +217,93 @@ I'll send you content for review automatically when new content is generated.
 
 Bot is {'🟢 Online' if self.application else '🔴 Offline'}
         """
-        
+
         await update.message.reply_text(status_message.strip(), parse_mode='Markdown')
-    
+
     async def _pending_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /pending command."""
         pending_reviews = [
             review for review in self.reviews.values()
             if review.status == ApprovalStatus.PENDING
         ]
-        
+
         if not pending_reviews:
             await update.message.reply_text("✅ No pending reviews!")
             return
-        
+
         message = f"📋 **Pending Reviews ({len(pending_reviews)}):**\n\n"
-        
+
         for review in pending_reviews[:10]:  # Show max 10
             age = datetime.now() - review.created_at
             age_str = f"{age.seconds // 3600}h {(age.seconds % 3600) // 60}m"
-            
+
             message += f"• `{review.review_id[:8]}` - {review.content_type} ({age_str} ago)\n"
-        
+
         if len(pending_reviews) > 10:
             message += f"\n... and {len(pending_reviews) - 10} more"
-        
+
         await update.message.reply_text(message, parse_mode='Markdown')
-    
+
     async def _history_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /history command."""
         recent_history = self.review_history[-10:]  # Last 10 reviews
-        
+
         if not recent_history:
             await update.message.reply_text("📝 No review history yet.")
             return
-        
+
         message = "📚 **Recent Review History:**\n\n"
-        
+
         for entry in reversed(recent_history):
             status_emoji = {
                 'approved': '✅',
                 'rejected': '❌',
                 'modified': '✏️'
             }.get(entry['status'], '❓')
-            
+
             reviewed_at = datetime.fromisoformat(entry['reviewed_at'])
             time_str = reviewed_at.strftime("%m/%d %H:%M")
-            
+
             message += f"{status_emoji} `{entry['review_id'][:8]}` - {entry['content_type']} ({time_str})\n"
-        
+
         await update.message.reply_text(message, parse_mode='Markdown')
-    
+
     async def _handle_approval_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle approval/rejection/modification callbacks."""
         query = update.callback_query
         await query.answer()
-        
+
         # Parse callback data
         action, review_id = query.data.split('_', 1)
-        
+
         if review_id not in self.reviews:
             await query.edit_message_text("❌ Review not found or already processed.")
             return
-        
+
         review = self.reviews[review_id]
         user = update.effective_user
-        
+
         if action == "approve":
             await self._approve_content(query, review, user)
         elif action == "reject":
             await self._reject_content(query, review, user)
         elif action == "modify":
             await self._start_modification(query, review, user)
-    
+
     async def _approve_content(self, query, review: ContentReview, user):
         """Approve content for publishing."""
         review.status = ApprovalStatus.APPROVED
         review.reviewed_at = datetime.now()
         review.reviewer_id = user.id
         review.reviewer_username = user.username
-        
+
         # Execute callback if provided
         if review.callback:
             try:
                 await review.callback(review, ApprovalStatus.APPROVED)
             except Exception as e:
                 self.logger.error(f"Callback execution failed: {str(e)}")
-        
+
         # Update message
         await query.edit_message_text(
             f"✅ **Content Approved**\n\n"
@@ -313,10 +313,10 @@ Bot is {'🟢 Online' if self.application else '🔴 Offline'}
             f"Content will be published to Instagram.",
             parse_mode='Markdown'
         )
-        
+
         # Add to history
         self._add_to_history(review)
-        
+
         self.logger.info(
             f"Content approved: {review.review_id}",
             extra={'extra_data': {
@@ -325,21 +325,21 @@ Bot is {'🟢 Online' if self.application else '🔴 Offline'}
                 'reviewer_username': user.username
             }}
         )
-    
+
     async def _reject_content(self, query, review: ContentReview, user):
         """Reject content."""
         review.status = ApprovalStatus.REJECTED
         review.reviewed_at = datetime.now()
         review.reviewer_id = user.id
         review.reviewer_username = user.username
-        
+
         # Execute callback if provided
         if review.callback:
             try:
                 await review.callback(review, ApprovalStatus.REJECTED)
             except Exception as e:
                 self.logger.error(f"Callback execution failed: {str(e)}")
-        
+
         # Update message
         await query.edit_message_text(
             f"❌ **Content Rejected**\n\n"
@@ -349,10 +349,10 @@ Bot is {'🟢 Online' if self.application else '🔴 Offline'}
             f"Content will not be published.",
             parse_mode='Markdown'
         )
-        
+
         # Add to history
         self._add_to_history(review)
-        
+
         self.logger.info(
             f"Content rejected: {review.review_id}",
             extra={'extra_data': {
@@ -361,7 +361,7 @@ Bot is {'🟢 Online' if self.application else '🔴 Offline'}
                 'reviewer_username': user.username
             }}
         )
-    
+
     async def _start_modification(self, query, review: ContentReview, user):
         """Start content modification process."""
         keyboard = [
@@ -374,9 +374,9 @@ Bot is {'🟢 Online' if self.application else '🔴 Offline'}
                 InlineKeyboardButton("🔙 Back to Review", callback_data=f"back_{review.review_id}")
             ]
         ]
-        
+
         reply_markup = InlineKeyboardMarkup(keyboard)
-        
+
         await query.edit_message_text(
             f"✏️ **Modify Content**\n\n"
             f"Review ID: `{review.review_id}`\n\n"
@@ -384,30 +384,30 @@ Bot is {'🟢 Online' if self.application else '🔴 Offline'}
             reply_markup=reply_markup,
             parse_mode='Markdown'
         )
-    
+
     async def _handle_modification_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle modification-specific callbacks."""
         query = update.callback_query
         await query.answer()
-        
+
         # Parse callback data
         parts = query.data.split('_')
         action = parts[1]
         review_id = '_'.join(parts[2:])
-        
+
         if review_id not in self.reviews:
             await query.edit_message_text("❌ Review not found.")
             return
-        
+
         review = self.reviews[review_id]
-        
+
         if action == "caption":
             await self._modify_caption(query, review)
         elif action == "hashtags":
             await self._modify_hashtags(query, review)
         elif action == "schedule":
             await self._modify_schedule(query, review)
-    
+
     async def _modify_caption(self, query, review: ContentReview):
         """Start caption modification."""
         await query.edit_message_text(
@@ -417,25 +417,25 @@ Bot is {'🟢 Online' if self.application else '🔴 Offline'}
             f"Please send me the new caption text:",
             parse_mode='Markdown'
         )
-        
+
         # Store modification context
         review.metadata['modification_type'] = 'caption'
         review.metadata['modification_chat_id'] = query.message.chat_id
         review.metadata['modification_message_id'] = query.message.message_id
-    
+
     async def _handle_text_modification(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle text modifications sent by user."""
         # Find review waiting for modification
         user_id = update.effective_user.id
         chat_id = update.effective_chat.id
-        
+
         for review in self.reviews.values():
             if (review.metadata.get('modification_chat_id') == chat_id and
                 review.metadata.get('modification_type')):
-                
+
                 modification_type = review.metadata['modification_type']
                 new_text = update.message.text
-                
+
                 if modification_type == 'caption':
                     review.modifications['original_caption'] = review.caption
                     review.caption = new_text
@@ -443,14 +443,14 @@ Bot is {'🟢 Online' if self.application else '🔴 Offline'}
                     review.reviewed_at = datetime.now()
                     review.reviewer_id = user_id
                     review.reviewer_username = update.effective_user.username
-                    
+
                     # Execute callback with modified content
                     if review.callback:
                         try:
                             await review.callback(review, ApprovalStatus.MODIFIED)
                         except Exception as e:
                             self.logger.error(f"Callback execution failed: {str(e)}")
-                    
+
                     await update.message.reply_text(
                         f"✅ **Caption Updated**\n\n"
                         f"Review ID: `{review.review_id}`\n"
@@ -459,17 +459,17 @@ Bot is {'🟢 Online' if self.application else '🔴 Offline'}
                         f"Content will be published with the modified caption.",
                         parse_mode='Markdown'
                     )
-                    
+
                     # Add to history
                     self._add_to_history(review)
-                    
+
                     # Clear modification context
                     review.metadata.pop('modification_type', None)
                     review.metadata.pop('modification_chat_id', None)
                     review.metadata.pop('modification_message_id', None)
-                    
+
                     break
-    
+
     def _add_to_history(self, review: ContentReview):
         """Add review to history."""
         self.review_history.append({
@@ -482,23 +482,23 @@ Bot is {'🟢 Online' if self.application else '🔴 Offline'}
             'reviewer_username': review.reviewer_username,
             'modifications': review.modifications
         })
-        
+
         # Keep only last 1000 entries
         if len(self.review_history) > 1000:
             self.review_history = self.review_history[-1000:]
-    
+
     def _get_review_statistics(self) -> Dict[str, Any]:
         """Get review statistics."""
         total_reviews = len(self.reviews)
         pending_reviews = len([r for r in self.reviews.values() if r.status == ApprovalStatus.PENDING])
-        
+
         history_stats = {}
         if self.review_history:
             approved = len([h for h in self.review_history if h['status'] == 'approved'])
             rejected = len([h for h in self.review_history if h['status'] == 'rejected'])
             modified = len([h for h in self.review_history if h['status'] == 'modified'])
             total_processed = len(self.review_history)
-            
+
             history_stats = {
                 'approved_count': approved,
                 'rejected_count': rejected,
@@ -508,7 +508,7 @@ Bot is {'🟢 Online' if self.application else '🔴 Offline'}
                 'rejection_rate': (rejected / total_processed * 100) if total_processed > 0 else 0,
                 'modification_rate': (modified / total_processed * 100) if total_processed > 0 else 0,
             }
-            
+
             # Calculate average review time
             review_times = []
             for h in self.review_history:
@@ -516,10 +516,10 @@ Bot is {'🟢 Online' if self.application else '🔴 Offline'}
                     created = datetime.fromisoformat(h['created_at'])
                     reviewed = datetime.fromisoformat(h['reviewed_at'])
                     review_times.append((reviewed - created).total_seconds() / 60)
-            
+
             avg_review_time = sum(review_times) / len(review_times) if review_times else 0
             history_stats['avg_review_time'] = f"{avg_review_time:.1f}"
-            
+
             # Reviews today
             today = datetime.now().date()
             reviews_today = len([
@@ -539,13 +539,13 @@ Bot is {'🟢 Online' if self.application else '🔴 Offline'}
                 'avg_review_time': '0.0',
                 'reviews_today': 0
             }
-        
+
         return {
             'total_reviews': total_reviews,
             'pending_reviews': pending_reviews,
             **history_stats
         }
-    
+
     @log_execution_time
     async def submit_for_review(
         self,
@@ -556,20 +556,20 @@ Bot is {'🟢 Online' if self.application else '🔴 Offline'}
         callback: Optional[Callable] = None
     ) -> str:
         """Submit content for review.
-        
+
         Args:
             content_type: Type of content being reviewed
             image_path: Path to image file (if applicable)
             caption: Caption text (if applicable)
             metadata: Additional metadata
             callback: Callback function to execute after review
-            
+
         Returns:
             Review ID
         """
         try:
             review_id = f"review_{uuid.uuid4().hex[:8]}"
-            
+
             # Create review
             review = ContentReview(
                 review_id=review_id,
@@ -579,12 +579,12 @@ Bot is {'🟢 Online' if self.application else '🔴 Offline'}
                 metadata=metadata or {},
                 callback=callback
             )
-            
+
             self.reviews[review_id] = review
-            
+
             # Send to Telegram for review
             await self._send_review_message(review)
-            
+
             self.logger.info(
                 f"Content submitted for review: {review_id}",
                 extra={'extra_data': {
@@ -594,9 +594,9 @@ Bot is {'🟢 Online' if self.application else '🔴 Offline'}
                     'has_caption': bool(caption)
                 }}
             )
-            
+
             return review_id
-            
+
         except Exception as e:
             self.logger.error(f"Failed to submit content for review: {str(e)}")
             handle_exception(e, {"component": "telegram_review"})
@@ -604,12 +604,12 @@ Bot is {'🟢 Online' if self.application else '🔴 Offline'}
                 f"Failed to submit content for review: {str(e)}",
                 original_exception=e
             )
-    
+
     async def _send_review_message(self, review: ContentReview):
         """Send review message to Telegram."""
         if not self.config.telegram.chat_id:
             raise TelegramError("Telegram chat ID not configured")
-        
+
         # Create inline keyboard
         keyboard = [
             [
@@ -619,7 +619,7 @@ Bot is {'🟢 Online' if self.application else '🔴 Offline'}
             ]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        
+
         # Prepare message text
         message_text = f"""
 🔍 **Content Review Request**
@@ -635,7 +635,7 @@ Bot is {'🟢 Online' if self.application else '🔴 Offline'}
 
 Please review and choose an action:
         """.strip()
-        
+
         try:
             if review.image_path and Path(review.image_path).exists():
                 # Send image with caption
@@ -655,27 +655,27 @@ Please review and choose an action:
                     reply_markup=reply_markup,
                     parse_mode='Markdown'
                 )
-                
+
         except Exception as e:
             self.logger.error(f"Failed to send review message: {str(e)}")
             raise TelegramError(f"Failed to send review message: {str(e)}")
-    
+
     async def start_bot(self):
         """Start the Telegram bot."""
         try:
             await self.application.initialize()
             await self.application.start()
             await self.application.updater.start_polling()
-            
+
             self.logger.info("Telegram bot started successfully")
-            
+
         except Exception as e:
             self.logger.error(f"Failed to start Telegram bot: {str(e)}")
             raise TelegramError(
                 "Failed to start Telegram bot",
                 original_exception=e
             )
-    
+
     async def stop_bot(self):
         """Stop the Telegram bot."""
         try:
@@ -683,9 +683,9 @@ Please review and choose an action:
                 await self.application.updater.stop()
                 await self.application.stop()
                 await self.application.shutdown()
-            
+
             self.logger.info("Telegram bot stopped successfully")
-            
+
         except Exception as e:
             self.logger.error(f"Failed to stop Telegram bot: {str(e)}")
             raise TelegramError(
@@ -715,14 +715,14 @@ async def submit_content_for_review(
     callback: Optional[Callable] = None
 ) -> str:
     """Submit content for Telegram review.
-    
+
     Args:
         content_type: Type of content being reviewed
         image_path: Path to image file
         caption: Caption text
         metadata: Additional metadata
         callback: Callback function after review
-        
+
     Returns:
         Review ID
     """

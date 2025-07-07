@@ -1,5 +1,5 @@
 """
-Scheduler module for AI Instagram Publisher.
+Scheduler module for AI Socials.
 
 This module provides comprehensive scheduling functionality for content generation,
 publishing, and review workflows.

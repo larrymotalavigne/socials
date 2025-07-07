@@ -1,6 +1,6 @@
-# AI Instagram Publisher - Improvement Tasks
+# AI Socials - Improvement Tasks
 
-This document contains a comprehensive list of improvement tasks for the AI Instagram Publisher project, organized by priority and logical implementation order.
+This document contains a comprehensive list of improvement tasks for the AI Socials project, organized by priority and logical implementation order.
 
 ## 🏗️ Architecture & Foundation
 

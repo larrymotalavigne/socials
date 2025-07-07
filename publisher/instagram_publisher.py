@@ -1,5 +1,5 @@
 """
-Instagram Publisher for AI Instagram Publisher.
+Instagram Publisher for AI Socials.
 
 This module provides Instagram publishing capabilities using the Instagram Graph API
 with proper error handling, logging, and configuration management.
@@ -42,7 +42,7 @@ class InstagramPublisher:
                 "Instagram access token is required for publishing",
                 service="Instagram"
             )
-        
+
         if not self.config.instagram.user_id:
             raise AuthenticationError(
                 "Instagram user ID is required for publishing",
@@ -53,19 +53,19 @@ class InstagramPublisher:
         """Validate image file for Instagram posting."""
         try:
             path = Path(image_path)
-            
+
             if not path.exists():
                 raise ValidationError(
                     f"Image file does not exist: {image_path}",
                     field="image_path"
                 )
-            
+
             if not path.is_file():
                 raise ValidationError(
                     f"Path is not a file: {image_path}",
                     field="image_path"
                 )
-            
+
             # Check file size (Instagram limit: 8MB for images)
             file_size = path.stat().st_size
             max_size = 8 * 1024 * 1024  # 8MB
@@ -75,7 +75,7 @@ class InstagramPublisher:
                     field="image_path",
                     details={"file_size": file_size, "max_size": max_size}
                 )
-            
+
             # Check file type
             mime_type, _ = mimetypes.guess_type(str(path))
             allowed_types = ['image/jpeg', 'image/jpg', 'image/png']
@@ -85,9 +85,9 @@ class InstagramPublisher:
                     field="image_path",
                     details={"mime_type": mime_type, "allowed_types": allowed_types}
                 )
-            
+
             return path
-            
+
         except Exception as e:
             if isinstance(e, ValidationError):
                 raise
@@ -101,7 +101,7 @@ class InstagramPublisher:
         """Validate caption for Instagram posting."""
         if not caption:
             raise ValidationError("Caption cannot be empty", field="caption")
-        
+
         # Instagram caption limit
         max_length = 2200
         if len(caption) > max_length:
@@ -110,7 +110,7 @@ class InstagramPublisher:
                 field="caption",
                 details={"length": len(caption), "max_length": max_length}
             )
-        
+
         return caption.strip()
 
     @retry_on_exception(
@@ -123,37 +123,37 @@ class InstagramPublisher:
         """Upload media to Instagram and return media ID."""
         try:
             url = f"{self.base_url}/{self.config.instagram.user_id}/media"
-            
+
             # Prepare the image file
             with open(image_path, 'rb') as image_file:
                 files = {
                     'image': (image_path.name, image_file, 'image/jpeg')
                 }
-                
+
                 data = {
                     'access_token': self.config.instagram.access_token
                 }
-                
+
                 self.logger.debug(f"Uploading media to Instagram: {image_path.name}")
-                
+
                 response = requests.post(
                     url,
                     files=files,
                     data=data,
                     timeout=self.config.request_timeout
                 )
-            
+
             # Handle response
             if response.status_code == 200:
                 result = response.json()
                 media_id = result.get('id')
-                
+
                 if not media_id:
                     raise InstagramError("No media ID returned from Instagram")
-                
+
                 self.logger.info(f"Media uploaded successfully: {media_id}")
                 return media_id
-                
+
             elif response.status_code == 429:
                 # Rate limit exceeded
                 retry_after = int(response.headers.get('Retry-After', 60))
@@ -162,13 +162,13 @@ class InstagramPublisher:
                     service="Instagram",
                     retry_after=retry_after
                 )
-                
+
             elif response.status_code == 401:
                 raise AuthenticationError(
                     "Instagram authentication failed - invalid access token",
                     service="Instagram"
                 )
-                
+
             else:
                 error_data = response.json() if response.content else {}
                 raise InstagramError(
@@ -176,7 +176,7 @@ class InstagramPublisher:
                     status_code=response.status_code,
                     response_data=error_data
                 )
-                
+
         except Exception as e:
             if isinstance(e, (InstagramError, AuthenticationError, RateLimitError)):
                 raise
@@ -195,32 +195,32 @@ class InstagramPublisher:
         """Publish uploaded media with caption."""
         try:
             url = f"{self.base_url}/{self.config.instagram.user_id}/media_publish"
-            
+
             data = {
                 'creation_id': media_id,
                 'caption': caption,
                 'access_token': self.config.instagram.access_token
             }
-            
+
             self.logger.debug(f"Publishing media to Instagram: {media_id}")
-            
+
             response = requests.post(
                 url,
                 data=data,
                 timeout=self.config.request_timeout
             )
-            
+
             # Handle response
             if response.status_code == 200:
                 result = response.json()
                 post_id = result.get('id')
-                
+
                 if not post_id:
                     raise InstagramError("No post ID returned from Instagram")
-                
+
                 self.logger.info(f"Media published successfully: {post_id}")
                 return post_id
-                
+
             elif response.status_code == 429:
                 # Rate limit exceeded
                 retry_after = int(response.headers.get('Retry-After', 60))
@@ -229,13 +229,13 @@ class InstagramPublisher:
                     service="Instagram",
                     retry_after=retry_after
                 )
-                
+
             elif response.status_code == 401:
                 raise AuthenticationError(
                     "Instagram authentication failed - invalid access token",
                     service="Instagram"
                 )
-                
+
             else:
                 error_data = response.json() if response.content else {}
                 raise InstagramError(
@@ -243,7 +243,7 @@ class InstagramPublisher:
                     status_code=response.status_code,
                     response_data=error_data
                 )
-                
+
         except Exception as e:
             if isinstance(e, (InstagramError, AuthenticationError, RateLimitError)):
                 raise
@@ -257,18 +257,18 @@ class InstagramPublisher:
         """Get status of a published post."""
         try:
             url = f"{self.base_url}/{post_id}"
-            
+
             params = {
                 'fields': 'id,media_type,media_url,permalink,timestamp,caption',
                 'access_token': self.config.instagram.access_token
             }
-            
+
             response = requests.get(
                 url,
                 params=params,
                 timeout=self.config.request_timeout
             )
-            
+
             if response.status_code == 200:
                 return response.json()
             else:
@@ -278,7 +278,7 @@ class InstagramPublisher:
                     status_code=response.status_code,
                     response_data=error_data
                 )
-                
+
         except Exception as e:
             if isinstance(e, InstagramError):
                 raise
@@ -397,19 +397,19 @@ class InstagramPublisher:
         """
         try:
             self.logger.info("Testing Instagram API connection...")
-            
+
             url = f"{self.base_url}/{self.config.instagram.user_id}"
             params = {
                 'fields': 'id,username,account_type',
                 'access_token': self.config.instagram.access_token
             }
-            
+
             response = requests.get(
                 url,
                 params=params,
                 timeout=self.config.request_timeout
             )
-            
+
             if response.status_code == 200:
                 user_data = response.json()
                 result = {
@@ -419,10 +419,10 @@ class InstagramPublisher:
                     "account_type": user_data.get('account_type'),
                     "message": "Instagram API connection successful"
                 }
-                
+
                 self.logger.info("Instagram API connection test successful")
                 return result
-                
+
             else:
                 error_data = response.json() if response.content else {}
                 result = {
@@ -431,17 +431,17 @@ class InstagramPublisher:
                     "error_data": error_data,
                     "message": "Instagram API connection failed"
                 }
-                
+
                 self.logger.error(f"Instagram API connection test failed: {response.status_code}")
                 return result
-                
+
         except Exception as e:
             result = {
                 "connected": False,
                 "error": str(e),
                 "message": "Instagram API connection test failed with exception"
             }
-            
+
             self.logger.error(f"Instagram API connection test failed: {str(e)}")
             return result
 

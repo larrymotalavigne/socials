@@ -1,7 +1,7 @@
 """
-AI Instagram Publisher - Main Application.
+AI Socials - Main Application.
 
-This is the main orchestrator for the AI Instagram Publisher application.
+This is the main orchestrator for the AI Socials application.
 It demonstrates the core infrastructure including configuration management,
 logging, error handling, and content generation.
 """
@@ -23,8 +23,8 @@ from utils.exceptions import (
 from utils.logger import get_logger, setup_logging
 
 
-class AIInstagramPublisher:
-    """Main application orchestrator for AI Instagram Publisher with proper lifecycle management."""
+class AISocials:
+    """Main application orchestrator for AI Socials with proper lifecycle management."""
 
     def __init__(self):
         """Initialize the application."""
@@ -39,12 +39,12 @@ class AIInstagramPublisher:
 
     def start(self):
         """Start the application lifecycle."""
-        self.logger.info("Starting AI Instagram Publisher application")
+        self.logger.info("Starting AI Socials application")
         self._running = True
 
     def stop(self):
         """Stop the application gracefully."""
-        self.logger.info("Stopping AI Instagram Publisher application")
+        self.logger.info("Stopping AI Socials application")
         self._shutdown_requested = True
         self._running = False
 
@@ -394,8 +394,8 @@ class AIInstagramPublisher:
             if not prompt:
                 prompt = "a joyful dog playing in a sunflower field during golden hour"
 
-            self.logger.info("Starting AI Instagram Publisher demo")
-            print("\n🤖📸 AI Instagram Publisher - Demo")
+            self.logger.info("Starting AI Socials demo")
+            print("\n🤖📸 AI Socials - Demo")
             print("=" * 50)
 
             # Display configuration info
@@ -871,7 +871,7 @@ def main():
             print(f"🔧 Using {args.caption_generator} caption generator (command line override)")
 
         # Initialize application
-        app = AIInstagramPublisher()
+        app = AISocials()
 
         # Start application lifecycle
         app.start()

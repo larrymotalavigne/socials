@@ -1,5 +1,5 @@
 """
-Security utilities for AI Instagram Publisher.
+Security utilities for AI Socials.
 
 This module provides comprehensive security features including:
 - Input validation and sanitization
@@ -130,11 +130,11 @@ class InputValidator:
     def validate(self, value: str, rule_name: str) -> Dict[str, Any]:
         """
         Validate input against a specific rule.
-        
+
         Args:
             value: The value to validate
             rule_name: Name of the validation rule to apply
-            
+
         Returns:
             Dictionary with validation results
         """
@@ -142,7 +142,7 @@ class InputValidator:
             return {'valid': False, 'error': f"Unknown validation rule: {rule_name}"}
 
         rule = self.rules[rule_name]
-        
+
         try:
             # Check if value is string
             if not isinstance(value, str):
@@ -151,7 +151,7 @@ class InputValidator:
             # Length validation
             if rule.min_length is not None and len(value) < rule.min_length:
                 return {'valid': False, 'error': f"Value too short (minimum {rule.min_length} characters)"}
-            
+
             if rule.max_length is not None and len(value) > rule.max_length:
                 return {'valid': False, 'error': f"Value too long (maximum {rule.max_length} characters)"}
 
@@ -180,11 +180,11 @@ class InputValidator:
     def sanitize(self, value: str, rule_name: str) -> str:
         """
         Sanitize input value based on rule.
-        
+
         Args:
             value: The value to sanitize
             rule_name: Name of the validation rule
-            
+
         Returns:
             Sanitized value
         """
@@ -193,26 +193,26 @@ class InputValidator:
 
         # Basic sanitization
         sanitized = value.strip()
-        
+
         # Remove null bytes
         sanitized = sanitized.replace('\x00', '')
-        
+
         # Normalize whitespace
         sanitized = re.sub(r'\s+', ' ', sanitized)
-        
+
         # Rule-specific sanitization
         if rule_name == 'prompt':
             # Remove potentially dangerous HTML/script tags
             sanitized = re.sub(r'<[^>]*>', '', sanitized)
             # Remove control characters except newlines and tabs
             sanitized = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', sanitized)
-        
+
         elif rule_name == 'filename':
             # Replace invalid filename characters
             sanitized = re.sub(r'[<>:"/\\|?*]', '_', sanitized)
             # Remove leading/trailing dots and spaces
             sanitized = sanitized.strip('. ')
-        
+
         elif rule_name == 'hashtag':
             # Ensure hashtag format
             if not sanitized.startswith('#'):
@@ -225,16 +225,16 @@ class InputValidator:
     def validate_multiple(self, data: Dict[str, str], rules: Dict[str, str]) -> Dict[str, Any]:
         """
         Validate multiple values against their respective rules.
-        
+
         Args:
             data: Dictionary of field names to values
             rules: Dictionary of field names to rule names
-            
+
         Returns:
             Dictionary with validation results for all fields
         """
         results = {'valid': True, 'errors': {}, 'sanitized': {}}
-        
+
         for field, value in data.items():
             if field in rules:
                 result = self.validate(value, rules[field])
@@ -243,7 +243,7 @@ class InputValidator:
                     results['errors'][field] = result['error']
                 else:
                     results['sanitized'][field] = result['sanitized_value']
-        
+
         return results
 
 
@@ -271,11 +271,11 @@ class RateLimiter:
     def is_allowed(self, identifier: str, limit_type: str = 'api_general') -> Dict[str, Any]:
         """
         Check if request is allowed under rate limit.
-        
+
         Args:
             identifier: Unique identifier (IP, user ID, API key, etc.)
             limit_type: Type of rate limit to apply
-            
+
         Returns:
             Dictionary with rate limit status
         """
@@ -284,7 +284,7 @@ class RateLimiter:
 
         config = self._configs[limit_type]
         now = datetime.now()
-        
+
         # Check if currently blocked
         if identifier in self._blocked:
             if now < self._blocked[identifier]:
@@ -302,17 +302,17 @@ class RateLimiter:
         # Clean old requests
         cutoff_time = now - timedelta(seconds=config.time_window)
         request_times = self._requests[identifier]
-        
+
         while request_times and request_times[0] < cutoff_time:
             request_times.popleft()
 
         # Check rate limit
         current_requests = len(request_times)
-        
+
         if current_requests >= config.max_requests:
             # Block the identifier
             self._blocked[identifier] = now + timedelta(seconds=config.block_duration)
-            
+
             self.logger.warning(
                 f"Rate limit exceeded for {identifier}",
                 extra={'extra_data': {
@@ -323,7 +323,7 @@ class RateLimiter:
                     'blocked_until': self._blocked[identifier].isoformat()
                 }}
             )
-            
+
             return {
                 'allowed': False,
                 'error': 'Rate limit exceeded',
@@ -337,7 +337,7 @@ class RateLimiter:
         if config.burst_limit:
             recent_cutoff = now - timedelta(seconds=60)  # Last minute
             recent_requests = sum(1 for req_time in request_times if req_time > recent_cutoff)
-            
+
             if recent_requests >= config.burst_limit:
                 return {
                     'allowed': False,
@@ -349,7 +349,7 @@ class RateLimiter:
 
         # Allow request and record it
         request_times.append(now)
-        
+
         return {
             'allowed': True,
             'current_requests': current_requests + 1,
@@ -376,7 +376,7 @@ class RateLimiter:
         now = datetime.now()
         active_limits = len(self._requests)
         blocked_count = len([b for b in self._blocked.values() if b > now])
-        
+
         return {
             'active_limits': active_limits,
             'blocked_identifiers': blocked_count,
@@ -398,7 +398,7 @@ class AuditLogger:
         """Set up dedicated audit logger."""
         self.audit_logger = logging.getLogger('audit')
         self.audit_logger.setLevel(logging.INFO)
-        
+
         # Create file handler for audit logs
         handler = logging.FileHandler(self.log_file)
         formatter = logging.Formatter(
@@ -421,7 +421,7 @@ class AuditLogger:
     ):
         """
         Log an audit event.
-        
+
         Args:
             action: Action performed (e.g., 'login', 'generate_content', 'publish_post')
             resource: Resource affected (e.g., 'user_account', 'instagram_post')
@@ -443,7 +443,7 @@ class AuditLogger:
             success=success,
             risk_level=risk_level
         )
-        
+
         # Log to audit file
         audit_data = {
             'timestamp': entry.timestamp.isoformat(),
@@ -456,12 +456,12 @@ class AuditLogger:
             'success': entry.success,
             'risk_level': entry.risk_level
         }
-        
+
         self.audit_logger.info(json.dumps(audit_data))
-        
+
         # Log to main logger based on risk level
         log_message = f"AUDIT: {action} on {resource} by {user_id or 'anonymous'}"
-        
+
         if risk_level == "critical":
             self.logger.critical(log_message, extra={'extra_data': audit_data})
         elif risk_level == "high":
@@ -540,7 +540,7 @@ class EncryptionManager:
         """Derive encryption key from password."""
         if salt is None:
             salt = secrets.token_bytes(16)
-        
+
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
@@ -583,7 +583,7 @@ class EncryptionManager:
         """Create secure hash of data."""
         if salt is None:
             salt = secrets.token_hex(16)
-        
+
         hash_obj = hashlib.pbkdf2_hmac('sha256', data.encode(), salt.encode(), 100000)
         return {
             'hash': hash_obj.hex(),
@@ -603,13 +603,13 @@ def require_validation(rules: Dict[str, str]):
         @wraps(func)
         def wrapper(*args, **kwargs):
             validator = InputValidator()
-            
+
             # Get function signature to map args to parameter names
             import inspect
             sig = inspect.signature(func)
             bound_args = sig.bind(*args, **kwargs)
             bound_args.apply_defaults()
-            
+
             # Validate specified arguments
             for param_name, rule_name in rules.items():
                 if param_name in bound_args.arguments:
@@ -620,7 +620,7 @@ def require_validation(rules: Dict[str, str]):
                             raise ValueError(f"Validation failed for {param_name}: {result['error']}")
                         # Replace with sanitized value
                         bound_args.arguments[param_name] = result['sanitized_value']
-            
+
             return func(*bound_args.args, **bound_args.kwargs)
         return wrapper
     return decorator
@@ -632,19 +632,19 @@ def rate_limit(limit_type: str = 'api_general', identifier_func: Optional[Callab
         @wraps(func)
         def wrapper(*args, **kwargs):
             limiter = RateLimiter()
-            
+
             # Determine identifier
             if identifier_func:
                 identifier = identifier_func(*args, **kwargs)
             else:
                 # Default to first argument or 'default'
                 identifier = str(args[0]) if args else 'default'
-            
+
             # Check rate limit
             result = limiter.is_allowed(identifier, limit_type)
             if not result['allowed']:
                 raise Exception(f"Rate limit exceeded: {result['error']}")
-            
+
             return func(*args, **kwargs)
         return wrapper
     return decorator
@@ -656,10 +656,10 @@ def audit_log(action: str, resource: str, risk_level: str = "low"):
         @wraps(func)
         def wrapper(*args, **kwargs):
             auditor = AuditLogger()
-            
+
             # Extract user_id if available
             user_id = kwargs.get('user_id') or (args[0] if args and hasattr(args[0], 'user_id') else None)
-            
+
             try:
                 result = func(*args, **kwargs)
                 auditor.log_action(

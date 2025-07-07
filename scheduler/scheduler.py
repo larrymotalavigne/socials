@@ -1,5 +1,5 @@
 """
-Advanced Scheduling System for AI Instagram Publisher.
+Advanced Scheduling System for AI Socials.
 
 This module provides comprehensive scheduling functionality using APScheduler
 with job persistence, recovery, and management capabilities.
@@ -76,7 +76,7 @@ class ScheduledJob:
 
 
 class ContentScheduler:
-    """Advanced scheduler for AI Instagram Publisher."""
+    """Advanced scheduler for AI Socials."""
 
     def __init__(self):
         """Initialize the scheduler with configuration."""
@@ -236,17 +236,17 @@ class ContentScheduler:
             **trigger_args
     ) -> str:
         """Add a new scheduled job.
-        
+
         Args:
             function: Function to execute
             job_type: Type of job
             trigger_type: APScheduler trigger type (interval, cron, date)
             job_id: Optional custom job ID
             **trigger_args: Trigger-specific arguments
-            
+
         Returns:
             Job ID
-            
+
         Raises:
             SchedulingError: If job scheduling fails
         """
@@ -312,10 +312,10 @@ class ContentScheduler:
 
     def remove_job(self, job_id: str) -> bool:
         """Remove a scheduled job.
-        
+
         Args:
             job_id: ID of job to remove
-            
+
         Returns:
             True if job was removed, False if not found
         """
@@ -460,20 +460,20 @@ def schedule_content_generation(
         theme: Optional[str] = None
 ) -> str:
     """Schedule regular content generation.
-    
+
     Args:
         prompt: Content generation prompt
         interval_hours: Hours between generations
         style: Caption style
         theme: Content theme
-        
+
     Returns:
         Job ID
     """
-    from main import AIInstagramPublisher
+    from main import AISocials
 
     def generate_content_job():
-        app = AIInstagramPublisher()
+        app = AISocials()
         return app.generate_content(prompt=prompt, style=style, theme=theme)
 
     scheduler = get_scheduler()
@@ -491,19 +491,19 @@ def schedule_instagram_publishing(
         publish_time: datetime
 ) -> str:
     """Schedule Instagram publishing at specific time.
-    
+
     Args:
         image_path: Path to image file
         caption: Post caption
         publish_time: When to publish
-        
+
     Returns:
         Job ID
     """
-    from main import AIInstagramPublisher
+    from main import AISocials
 
     def publish_job():
-        app = AIInstagramPublisher()
+        app = AISocials()
         return app.publish_content(image_path=image_path, caption=caption)
 
     scheduler = get_scheduler()

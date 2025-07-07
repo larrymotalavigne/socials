@@ -1,5 +1,5 @@
 """
-Custom exception classes and error handling framework for AI Instagram Publisher.
+Custom exception classes and error handling framework for AI Socials.
 
 This module provides structured error handling with proper categorization,
 retry mechanisms, and error reporting.
@@ -29,7 +29,7 @@ class ErrorCategory(Enum):
 
 class BaseAppException(Exception):
     """Base exception class for all application-specific exceptions."""
-    
+
     def __init__(
         self, 
         message: str, 
@@ -43,7 +43,7 @@ class BaseAppException(Exception):
         self.details = details or {}
         self.original_exception = original_exception
         self.timestamp = time.time()
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert exception to dictionary for logging/reporting."""
         return {
@@ -58,7 +58,7 @@ class BaseAppException(Exception):
 
 class ConfigurationError(BaseAppException):
     """Raised when there's a configuration-related error."""
-    
+
     def __init__(self, message: str, config_key: Optional[str] = None, **kwargs):
         details = kwargs.get('details', {})
         if config_key:
@@ -73,7 +73,7 @@ class ConfigurationError(BaseAppException):
 
 class APIError(BaseAppException):
     """Raised when there's an API-related error."""
-    
+
     def __init__(
         self, 
         message: str, 
@@ -88,7 +88,7 @@ class APIError(BaseAppException):
             'response_data': response_data
         }
         details.update(kwargs.get('details', {}))
-        
+
         super().__init__(
             message, 
             ErrorCategory.API_ERROR, 
@@ -99,33 +99,33 @@ class APIError(BaseAppException):
 
 class OpenAIError(APIError):
     """Raised when there's an OpenAI API error."""
-    
+
     def __init__(self, message: str, **kwargs):
         super().__init__(message, api_name="OpenAI", **kwargs)
 
 
 class InstagramError(APIError):
     """Raised when there's an Instagram API error."""
-    
+
     def __init__(self, message: str, **kwargs):
         super().__init__(message, api_name="Instagram", **kwargs)
 
 
 class TelegramError(APIError):
     """Raised when there's a Telegram API error."""
-    
+
     def __init__(self, message: str, **kwargs):
         super().__init__(message, api_name="Telegram", **kwargs)
 
 
 class ContentGenerationError(BaseAppException):
     """Raised when content generation fails."""
-    
+
     def __init__(self, message: str, content_type: Optional[str] = None, **kwargs):
         details = kwargs.get('details', {})
         if content_type:
             details['content_type'] = content_type
-        
+
         super().__init__(
             message, 
             ErrorCategory.CONTENT_GENERATION, 
@@ -136,12 +136,12 @@ class ContentGenerationError(BaseAppException):
 
 class PublishingError(BaseAppException):
     """Raised when publishing fails."""
-    
+
     def __init__(self, message: str, platform: Optional[str] = None, **kwargs):
         details = kwargs.get('details', {})
         if platform:
             details['platform'] = platform
-        
+
         super().__init__(
             message, 
             ErrorCategory.PUBLISHING, 
@@ -152,7 +152,7 @@ class PublishingError(BaseAppException):
 
 class SchedulingError(BaseAppException):
     """Raised when scheduling operations fail."""
-    
+
     def __init__(self, message: str, **kwargs):
         super().__init__(
             message, 
@@ -164,12 +164,12 @@ class SchedulingError(BaseAppException):
 
 class ValidationError(BaseAppException):
     """Raised when validation fails."""
-    
+
     def __init__(self, message: str, field: Optional[str] = None, **kwargs):
         details = kwargs.get('details', {})
         if field:
             details['field'] = field
-        
+
         super().__init__(
             message, 
             ErrorCategory.VALIDATION, 
@@ -180,7 +180,7 @@ class ValidationError(BaseAppException):
 
 class NetworkError(BaseAppException):
     """Raised when network operations fail."""
-    
+
     def __init__(self, message: str, **kwargs):
         super().__init__(
             message, 
@@ -192,12 +192,12 @@ class NetworkError(BaseAppException):
 
 class AuthenticationError(BaseAppException):
     """Raised when authentication fails."""
-    
+
     def __init__(self, message: str, service: Optional[str] = None, **kwargs):
         details = kwargs.get('details', {})
         if service:
             details['service'] = service
-        
+
         super().__init__(
             message, 
             ErrorCategory.AUTHENTICATION, 
@@ -208,7 +208,7 @@ class AuthenticationError(BaseAppException):
 
 class RateLimitError(BaseAppException):
     """Raised when rate limits are exceeded."""
-    
+
     def __init__(
         self, 
         message: str, 
@@ -221,7 +221,7 @@ class RateLimitError(BaseAppException):
             details['service'] = service
         if retry_after:
             details['retry_after'] = retry_after
-        
+
         super().__init__(
             message, 
             ErrorCategory.RATE_LIMIT, 
@@ -232,7 +232,7 @@ class RateLimitError(BaseAppException):
 
 class SystemError(BaseAppException):
     """Raised when system-level errors occur."""
-    
+
     def __init__(self, message: str, **kwargs):
         super().__init__(
             message, 
@@ -244,29 +244,29 @@ class SystemError(BaseAppException):
 
 class ErrorHandler:
     """Global error handler for the application."""
-    
+
     def __init__(self):
         self.logger = get_logger('error_handler')
         self._error_counts: Dict[str, int] = {}
-    
+
     def handle_exception(self, exception: Exception, context: Optional[Dict[str, Any]] = None):
         """Handle an exception with proper logging and categorization."""
         context = context or {}
-        
+
         if isinstance(exception, BaseAppException):
             self._handle_app_exception(exception, context)
         else:
             self._handle_generic_exception(exception, context)
-    
+
     def _handle_app_exception(self, exception: BaseAppException, context: Dict[str, Any]):
         """Handle application-specific exceptions."""
         error_data = exception.to_dict()
         error_data.update(context)
-        
+
         # Count errors by type
         error_key = f"{exception.category.value}:{exception.__class__.__name__}"
         self._error_counts[error_key] = self._error_counts.get(error_key, 0) + 1
-        
+
         # Log based on category
         if exception.category in [ErrorCategory.SYSTEM, ErrorCategory.API_ERROR]:
             self.logger.error(
@@ -283,7 +283,7 @@ class ErrorHandler:
                 f"[{exception.category.value.upper()}] {exception.message}",
                 extra={'extra_data': error_data}
             )
-    
+
     def _handle_generic_exception(self, exception: Exception, context: Dict[str, Any]):
         """Handle generic Python exceptions."""
         error_data = {
@@ -292,13 +292,13 @@ class ErrorHandler:
             'category': 'unknown',
             'context': context
         }
-        
+
         self.logger.error(
             f"[UNHANDLED] {exception.__class__.__name__}: {str(exception)}",
             extra={'extra_data': error_data},
             exc_info=True
         )
-    
+
     def get_error_stats(self) -> Dict[str, int]:
         """Get error statistics."""
         return self._error_counts.copy()
@@ -306,7 +306,7 @@ class ErrorHandler:
 
 class RetryConfig:
     """Configuration for retry mechanisms."""
-    
+
     def __init__(
         self,
         max_attempts: int = 3,
@@ -328,27 +328,27 @@ def retry_on_exception(
     logger_name: Optional[str] = None
 ):
     """Decorator to retry function calls on specific exceptions.
-    
+
     Args:
         exceptions: Exception type(s) to retry on
         retry_config: Retry configuration
         logger_name: Custom logger name
-        
+
     Returns:
         Decorated function
     """
     if retry_config is None:
         retry_config = RetryConfig()
-    
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             logger = get_logger(logger_name or func.__module__)
-            
+
             for attempt in range(retry_config.max_attempts):
                 try:
                     return func(*args, **kwargs)
-                
+
                 except exceptions as e:
                     if attempt == retry_config.max_attempts - 1:
                         logger.error(
@@ -360,17 +360,17 @@ def retry_on_exception(
                             }}
                         )
                         raise
-                    
+
                     # Calculate delay
                     delay = min(
                         retry_config.base_delay * (retry_config.exponential_base ** attempt),
                         retry_config.max_delay
                     )
-                    
+
                     if retry_config.jitter:
                         import random
                         delay *= (0.5 + random.random() * 0.5)  # Add 0-50% jitter
-                    
+
                     logger.warning(
                         f"Function {func.__name__} failed (attempt {attempt + 1}/{retry_config.max_attempts}), "
                         f"retrying in {delay:.2f}s: {str(e)}",
@@ -382,9 +382,9 @@ def retry_on_exception(
                             'error': str(e)
                         }}
                     )
-                    
+
                     time.sleep(delay)
-        
+
         return wrapper
     return decorator
 
