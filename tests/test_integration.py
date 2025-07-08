@@ -18,7 +18,7 @@ from generator.image_generator import ImageGenerator
 from generator.caption_generator import CaptionGenerator
 from generator.ollama_caption_generator import OllamaCaptionGenerator
 from utils.exceptions import OpenAIError, ContentGenerationError
-from main import AIInstagramPublisher
+from main import AISocials
 
 
 class TestOpenAIIntegration:
@@ -272,7 +272,7 @@ class TestApplicationIntegration:
 
     def test_application_initialization(self):
         """Test application initialization and lifecycle."""
-        app = AIInstagramPublisher()
+        app = AISocials()
         
         assert app.config is not None
         assert app.image_generator is not None
@@ -287,7 +287,7 @@ class TestApplicationIntegration:
 
     def test_application_validation(self):
         """Test application setup validation."""
-        app = AIInstagramPublisher()
+        app = AISocials()
         
         # This might fail if OpenAI API key is not valid, but should not crash
         try:
@@ -314,7 +314,7 @@ class TestApplicationIntegration:
             'metadata': {'style': 'engaging'}
         }
 
-        app = AIInstagramPublisher()
+        app = AISocials()
         app.start()
         
         try:
@@ -334,7 +334,7 @@ class TestApplicationIntegration:
         # Mock image generation failure
         mock_image.side_effect = OpenAIError("API error")
 
-        app = AIInstagramPublisher()
+        app = AISocials()
         app.start()
         
         try:
@@ -421,7 +421,7 @@ class TestErrorHandlingIntegration:
         mock_logger = MagicMock()
         mock_get_logger.return_value = mock_logger
         
-        app = AIInstagramPublisher()
+        app = AISocials()
         
         # Verify logger was called during initialization
         assert mock_get_logger.called
@@ -433,7 +433,7 @@ class TestSecurityIntegration:
 
     def test_input_validation_in_pipeline(self):
         """Test input validation integration in content pipeline."""
-        app = AIInstagramPublisher()
+        app = AISocials()
         app.start()
         
         try:
@@ -606,7 +606,7 @@ class TestIntegrationWithFixtures:
             from config import config_manager
             config_manager._config = None
             
-            app = AIInstagramPublisher()
+            app = AISocials()
             
             assert app.config.content.output_directory == temp_output_dir
 
@@ -626,7 +626,7 @@ class TestEndToEndIntegration:
         
         mock_caption_api.return_value = "Amazing sunset over the mountains! 🌅 #sunset #mountains #nature"
         
-        app = AIInstagramPublisher()
+        app = AISocials()
         app.start()
         
         try:
@@ -661,7 +661,7 @@ class TestEndToEndIntegration:
 
     def test_error_recovery_in_pipeline(self):
         """Test error recovery and graceful degradation in pipeline."""
-        app = AIInstagramPublisher()
+        app = AISocials()
         app.start()
         
         try:

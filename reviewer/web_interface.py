@@ -1,7 +1,7 @@
 """
 Web-based Content Review Interface.
 
-This module provides a Flask web application for reviewing and approving
+This module provides a FastAPI web application for reviewing and approving
 AI-generated content as an alternative to the Telegram bot interface.
 """
 
@@ -12,17 +12,20 @@ from typing import Dict, Any, List, Optional
 from pathlib import Path
 from functools import wraps
 
-from flask import (
-    Flask, 
-    render_template_string, 
-    request, 
-    jsonify, 
-    redirect, 
-    url_for,
-    session,
-    flash,
-    send_file
+from fastapi import (
+    FastAPI,
+    Request,
+    Form,
+    HTTPException,
+    Depends,
+    status
 )
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
+from starlette.middleware.sessions import SessionMiddleware
+from starlette.responses import Response
+from pydantic import BaseModel
 
 from config import get_config
 from utils.logger import get_logger, log_execution_time
@@ -37,109 +40,104 @@ from reviewer.telegram_bot import (
 )
 
 
+# Pydantic models for request/response data
+class ModifyRequest(BaseModel):
+    caption: str
+
+
 class WebReviewInterface:
     """Web-based content review interface."""
-    
+
     def __init__(self):
         """Initialize the web interface."""
         self.logger = get_logger(__name__)
         self.config = get_config()
-        self.app = Flask(__name__)
-        self.app.secret_key = 'ai-instagram-publisher-review-key'  # In production, use a secure random key
+        self.app = FastAPI(title="AI Socials - Review Interface")
+        self.app.add_middleware(SessionMiddleware, secret_key='ai-instagram-publisher-review-key')
         self.telegram_bot = get_telegram_bot()
         self._setup_routes()
-    
+
     def _setup_routes(self):
-        """Set up Flask routes."""
-        
-        @self.app.route('/')
-        def index():
+        """Set up FastAPI routes."""
+
+        @self.app.get("/", response_class=HTMLResponse)
+        async def index(request: Request):
             """Main dashboard."""
-            return self._render_dashboard()
-        
-        @self.app.route('/login', methods=['GET', 'POST'])
-        def login():
-            """Simple login page."""
-            if request.method == 'POST':
-                # Simple authentication - in production, use proper auth
-                username = request.form.get('username')
-                password = request.form.get('password')
-                
-                # Basic auth check (in production, use proper authentication)
-                if username == 'admin' and password == 'review123':
-                    session['authenticated'] = True
-                    session['username'] = username
-                    flash('Logged in successfully!', 'success')
-                    return redirect(url_for('index'))
-                else:
-                    flash('Invalid credentials!', 'error')
-            
-            return self._render_login()
-        
-        @self.app.route('/logout')
-        def logout():
+            return await self._render_dashboard(request)
+
+        @self.app.get("/login", response_class=HTMLResponse)
+        async def login_get(request: Request):
+            """Show login page."""
+            return await self._render_login(request)
+
+        @self.app.post("/login")
+        async def login_post(request: Request, username: str = Form(...), password: str = Form(...)):
+            """Handle login form submission."""
+            # Basic auth check (in production, use proper authentication)
+            if username == 'admin' and password == 'review123':
+                request.session['authenticated'] = True
+                request.session['username'] = username
+                return RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
+            else:
+                return await self._render_login(request, error="Invalid credentials!")
+
+        @self.app.get("/logout")
+        async def logout(request: Request):
             """Logout."""
-            session.clear()
-            flash('Logged out successfully!', 'info')
-            return redirect(url_for('login'))
-        
-        @self.app.route('/reviews')
-        @self._require_auth
-        def reviews():
+            request.session.clear()
+            return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+
+        @self.app.get("/reviews", response_class=HTMLResponse)
+        async def reviews(request: Request, authenticated: bool = Depends(self._require_auth)):
             """List all reviews."""
-            return self._render_reviews()
-        
-        @self.app.route('/review/<review_id>')
-        @self._require_auth
-        def review_detail(review_id):
+            return await self._render_reviews(request)
+
+        @self.app.get("/review/{review_id}", response_class=HTMLResponse)
+        async def review_detail(request: Request, review_id: str, authenticated: bool = Depends(self._require_auth)):
             """Show detailed review page."""
-            return self._render_review_detail(review_id)
-        
-        @self.app.route('/api/approve/<review_id>', methods=['POST'])
-        @self._require_auth
-        def approve_review(review_id):
+            return await self._render_review_detail(request, review_id)
+
+        @self.app.post("/api/approve/{review_id}")
+        async def approve_review(request: Request, review_id: str, authenticated: bool = Depends(self._require_auth)):
             """Approve a review via API."""
-            return self._handle_approval(review_id, ApprovalStatus.APPROVED)
-        
-        @self.app.route('/api/reject/<review_id>', methods=['POST'])
-        @self._require_auth
-        def reject_review(review_id):
+            return await self._handle_approval(request, review_id, ApprovalStatus.APPROVED)
+
+        @self.app.post("/api/reject/{review_id}")
+        async def reject_review(request: Request, review_id: str, authenticated: bool = Depends(self._require_auth)):
             """Reject a review via API."""
-            return self._handle_approval(review_id, ApprovalStatus.REJECTED)
-        
-        @self.app.route('/api/modify/<review_id>', methods=['POST'])
-        @self._require_auth
-        def modify_review(review_id):
+            return await self._handle_approval(request, review_id, ApprovalStatus.REJECTED)
+
+        @self.app.post("/api/modify/{review_id}")
+        async def modify_review(request: Request, review_id: str, modify_data: ModifyRequest, authenticated: bool = Depends(self._require_auth)):
             """Modify a review via API."""
-            return self._handle_modification(review_id)
-        
-        @self.app.route('/api/stats')
-        @self._require_auth
-        def get_stats():
+            return await self._handle_modification(request, review_id, modify_data)
+
+        @self.app.get("/api/stats")
+        async def get_stats(request: Request, authenticated: bool = Depends(self._require_auth)):
             """Get review statistics."""
             stats = self.telegram_bot._get_review_statistics()
-            return jsonify(stats)
-        
-        @self.app.route('/image/<review_id>')
-        @self._require_auth
-        def serve_image(review_id):
+            return JSONResponse(content=stats)
+
+        @self.app.get("/image/{review_id}")
+        async def serve_image(request: Request, review_id: str, authenticated: bool = Depends(self._require_auth)):
             """Serve review image."""
             if review_id in self.telegram_bot.reviews:
                 review = self.telegram_bot.reviews[review_id]
                 if review.image_path and Path(review.image_path).exists():
-                    return send_file(review.image_path)
-            return "Image not found", 404
-    
-    def _require_auth(self, f):
-        """Decorator to require authentication."""
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            if not session.get('authenticated'):
-                return redirect(url_for('login'))
-            return f(*args, **kwargs)
-        return decorated_function
-    
-    def _render_login(self):
+                    return FileResponse(review.image_path)
+            raise HTTPException(status_code=404, detail="Image not found")
+
+    def _require_auth(self, request: Request) -> bool:
+        """Dependency to require authentication."""
+        if not request.session.get('authenticated'):
+            raise HTTPException(
+                status_code=status.HTTP_302_FOUND,
+                detail="Authentication required",
+                headers={"Location": "/login"}
+            )
+        return True
+
+    async def _render_login(self, request: Request, error: str = None):
         """Render login page."""
         template = """
         <!DOCTYPE html>
@@ -166,15 +164,11 @@ class WebReviewInterface:
         <body>
             <div class="container">
                 <h1>🤖📸 Review Login</h1>
-                
-                {% with messages = get_flashed_messages(with_categories=true) %}
-                    {% if messages %}
-                        {% for category, message in messages %}
-                            <div class="alert alert-{{ category }}">{{ message }}</div>
-                        {% endfor %}
-                    {% endif %}
-                {% endwith %}
-                
+
+                {% if error %}
+                    <div class="alert alert-error">{{ error }}</div>
+                {% endif %}
+
                 <form method="POST">
                     <div class="form-group">
                         <label for="username">Username:</label>
@@ -186,7 +180,7 @@ class WebReviewInterface:
                     </div>
                     <button type="submit" class="btn">Login</button>
                 </form>
-                
+
                 <p style="text-align: center; margin-top: 20px; color: #666; font-size: 14px;">
                     Demo credentials: admin / review123
                 </p>
@@ -194,19 +188,27 @@ class WebReviewInterface:
         </body>
         </html>
         """
-        return render_template_string(template)
-    
-    def _render_dashboard(self):
+        # Simple template replacement for error
+        if error:
+            template = template.replace("{% if error %}", "").replace("{% endif %}", "").replace("{{ error }}", error)
+        else:
+            # Remove error block if no error
+            import re
+            template = re.sub(r'{% if error %}.*?{% endif %}', '', template, flags=re.DOTALL)
+
+        return HTMLResponse(content=template)
+
+    async def _render_dashboard(self, request: Request):
         """Render main dashboard."""
-        if not session.get('authenticated'):
-            return redirect(url_for('login'))
-        
+        if not request.session.get('authenticated'):
+            return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+
         stats = self.telegram_bot._get_review_statistics()
         pending_reviews = [
             review for review in self.telegram_bot.reviews.values()
             if review.status == ApprovalStatus.PENDING
         ]
-        
+
         template = """
         <!DOCTYPE html>
         <html>
@@ -247,7 +249,7 @@ class WebReviewInterface:
                     <a href="{{ url_for('logout') }}">Logout</a>
                 </div>
             </div>
-            
+
             <div class="stats">
                 <div class="stat-card">
                     <div class="stat-number">{{ stats.pending_reviews }}</div>
@@ -266,10 +268,10 @@ class WebReviewInterface:
                     <div class="stat-label">Reviews Today</div>
                 </div>
             </div>
-            
+
             <div class="pending-reviews">
                 <h2>Pending Reviews ({{ pending_reviews|length }})</h2>
-                
+
                 {% if pending_reviews %}
                     {% for review in pending_reviews %}
                         <div class="review-item">
@@ -285,7 +287,7 @@ class WebReviewInterface:
                     <p>No pending reviews! 🎉</p>
                 {% endif %}
             </div>
-            
+
             <script>
                 // Auto-refresh every 30 seconds
                 setTimeout(function() {
@@ -295,18 +297,45 @@ class WebReviewInterface:
         </body>
         </html>
         """
-        return render_template_string(
-            template, 
-            stats=stats, 
-            pending_reviews=pending_reviews,
-            session=session
-        )
-    
-    def _render_reviews(self):
+        # Simple template variable replacement
+        template = template.replace("{{ stats.pending_reviews }}", str(stats.pending_reviews))
+        template = template.replace("{{ stats.total_processed }}", str(stats.total_processed))
+        template = template.replace('{{ "%.1f"|format(stats.approval_rate) }}', f"{stats.approval_rate:.1f}")
+        template = template.replace("{{ stats.reviews_today }}", str(stats.reviews_today))
+        template = template.replace("{{ pending_reviews|length }}", str(len(pending_reviews)))
+        template = template.replace("{{ session.username }}", request.session.get('username', 'Unknown'))
+
+        # Handle pending reviews loop
+        if pending_reviews:
+            review_items = ""
+            for review in pending_reviews:
+                review_items += f"""
+                        <div class="review-item">
+                            <div class="review-id">ID: {review.review_id}</div>
+                            <div class="review-type">{review.content_type}</div>
+                            <div class="review-time">Created: {review.created_at.strftime('%Y-%m-%d %H:%M:%S')}</div>
+                            <div style="margin-top: 10px;">
+                                <a href="/review/{review.review_id}" class="btn">Review</a>
+                            </div>
+                        </div>"""
+            template = template.replace("{% for review in pending_reviews %}", "").replace("{% endfor %}", "")
+            template = template.replace("{% if pending_reviews %}", "").replace("{% else %}", "<!--").replace("{% endif %}", "-->")
+            # Insert the review items
+            import re
+            template = re.sub(r'<div class="review-item">.*?</div>\s*</div>', review_items, template, flags=re.DOTALL)
+        else:
+            # Remove the loop and show no reviews message
+            import re
+            template = re.sub(r'{% if pending_reviews %}.*?{% else %}(.*?){% endif %}', r'\1', template, flags=re.DOTALL)
+            template = re.sub(r'{% for review in pending_reviews %}.*?{% endfor %}', '', template, flags=re.DOTALL)
+
+        return HTMLResponse(content=template)
+
+    async def _render_reviews(self, request: Request):
         """Render all reviews page."""
         all_reviews = list(self.telegram_bot.reviews.values())
         all_reviews.sort(key=lambda x: x.created_at, reverse=True)
-        
+
         template = """
         <!DOCTYPE html>
         <html>
@@ -343,10 +372,10 @@ class WebReviewInterface:
                     <a href="{{ url_for('logout') }}">Logout</a>
                 </div>
             </div>
-            
+
             <div class="reviews-container">
                 <h2>All Reviews ({{ all_reviews|length }})</h2>
-                
+
                 {% for review in all_reviews %}
                     <div class="review-item">
                         <div class="review-header">
@@ -376,15 +405,57 @@ class WebReviewInterface:
         </body>
         </html>
         """
-        return render_template_string(template, all_reviews=all_reviews)
-    
-    def _render_review_detail(self, review_id: str):
+        # Simple template variable replacement
+        template = template.replace("{{ all_reviews|length }}", str(len(all_reviews)))
+        template = template.replace('<a href="{{ url_for(\'index\') }}">Dashboard</a>', '<a href="/">Dashboard</a>')
+        template = template.replace('<a href="{{ url_for(\'logout\') }}">Logout</a>', '<a href="/logout">Logout</a>')
+
+        # Handle reviews loop
+        if all_reviews:
+            review_items = ""
+            for review in all_reviews:
+                reviewed_info = ""
+                if review.reviewed_at:
+                    reviewed_info += f" | Reviewed: {review.reviewed_at.strftime('%Y-%m-%d %H:%M:%S')}"
+                if review.reviewer_username:
+                    reviewed_info += f" | By: {review.reviewer_username}"
+
+                review_items += f"""
+                    <div class="review-item">
+                        <div class="review-header">
+                            <div>
+                                <div class="review-id">{review.review_id}</div>
+                                <strong>{review.content_type}</strong>
+                            </div>
+                            <div class="review-status status-{review.status.value}">
+                                {review.status.value.upper()}
+                            </div>
+                        </div>
+                        <div class="review-meta">
+                            Created: {review.created_at.strftime('%Y-%m-%d %H:%M:%S')}{reviewed_info}
+                        </div>
+                        <div>
+                            <a href="/review/{review.review_id}" class="btn">View Details</a>
+                        </div>
+                    </div>"""
+
+            # Replace the template loop with actual content
+            import re
+            template = re.sub(r'{% for review in all_reviews %}.*?{% endfor %}', review_items, template, flags=re.DOTALL)
+        else:
+            # Remove the loop if no reviews
+            import re
+            template = re.sub(r'{% for review in all_reviews %}.*?{% endfor %}', '<p>No reviews found.</p>', template, flags=re.DOTALL)
+
+        return HTMLResponse(content=template)
+
+    async def _render_review_detail(self, request: Request, review_id: str):
         """Render detailed review page."""
         if review_id not in self.telegram_bot.reviews:
-            return "Review not found", 404
-        
+            raise HTTPException(status_code=404, detail="Review not found")
+
         review = self.telegram_bot.reviews[review_id]
-        
+
         template = """
         <!DOCTYPE html>
         <html>
@@ -436,11 +507,11 @@ class WebReviewInterface:
                     <a href="{{ url_for('logout') }}">Logout</a>
                 </div>
             </div>
-            
+
             <div class="review-container">
                 <div class="review-content">
                     <h2>{{ review.content_type }}</h2>
-                    
+
                     <div class="review-meta">
                         <strong>Review ID:</strong> {{ review.review_id }}<br>
                         <strong>Created:</strong> {{ review.created_at.strftime('%Y-%m-%d %H:%M:%S') }}<br>
@@ -451,33 +522,33 @@ class WebReviewInterface:
                             <strong>Reviewer:</strong> {{ review.reviewer_username }}<br>
                         {% endif %}
                     </div>
-                    
+
                     <div class="review-status status-{{ review.status.value }}">
                         Status: {{ review.status.value.upper() }}
                     </div>
-                    
+
                     {% if review.image_path %}
                         <img src="{{ url_for('serve_image', review_id=review.review_id) }}" alt="Review Image" class="review-image">
                     {% endif %}
-                    
+
                     {% if review.caption %}
                         <div class="review-caption">{{ review.caption }}</div>
                     {% endif %}
-                    
+
                     {% if review.modifications %}
                         <h3>Modifications</h3>
                         <pre>{{ review.modifications | tojson(indent=2) }}</pre>
                     {% endif %}
                 </div>
-                
+
                 <div class="review-actions">
                     <h3>Actions</h3>
-                    
+
                     {% if review.status.value == 'pending' %}
                         <button onclick="approveReview()" class="btn btn-success">✅ Approve</button>
                         <button onclick="rejectReview()" class="btn btn-danger">❌ Reject</button>
                         <button onclick="showModifyForm()" class="btn btn-warning">✏️ Modify</button>
-                        
+
                         <div id="modify-form" class="modification-form" style="display: none;">
                             <h4>Modify Caption</h4>
                             <form onsubmit="modifyReview(event)">
@@ -494,7 +565,7 @@ class WebReviewInterface:
                     {% endif %}
                 </div>
             </div>
-            
+
             <script>
                 function approveReview() {
                     if (confirm('Are you sure you want to approve this content?')) {
@@ -509,7 +580,7 @@ class WebReviewInterface:
                             });
                     }
                 }
-                
+
                 function rejectReview() {
                     if (confirm('Are you sure you want to reject this content?')) {
                         fetch('/api/reject/{{ review.review_id }}', { method: 'POST' })
@@ -523,19 +594,19 @@ class WebReviewInterface:
                             });
                     }
                 }
-                
+
                 function showModifyForm() {
                     document.getElementById('modify-form').style.display = 'block';
                 }
-                
+
                 function hideModifyForm() {
                     document.getElementById('modify-form').style.display = 'none';
                 }
-                
+
                 function modifyReview(event) {
                     event.preventDefault();
                     const caption = document.getElementById('new-caption').value;
-                    
+
                     fetch('/api/modify/{{ review.review_id }}', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -554,24 +625,80 @@ class WebReviewInterface:
         </body>
         </html>
         """
-        return render_template_string(template, review=review)
-    
-    def _handle_approval(self, review_id: str, status: ApprovalStatus):
+        # Simple template variable replacement
+        template = template.replace("{{ review.review_id }}", review.review_id)
+        template = template.replace("{{ review.content_type }}", review.content_type)
+        template = template.replace("{{ review.created_at.strftime('%Y-%m-%d %H:%M:%S') }}", review.created_at.strftime('%Y-%m-%d %H:%M:%S'))
+        template = template.replace("{{ review.status.value }}", review.status.value)
+        template = template.replace("{{ review.status.value.upper() }}", review.status.value.upper())
+        template = template.replace('<a href="{{ url_for(\'index\') }}">Dashboard</a>', '<a href="/">Dashboard</a>')
+        template = template.replace('<a href="{{ url_for(\'reviews\') }}">All Reviews</a>', '<a href="/reviews">All Reviews</a>')
+        template = template.replace('<a href="{{ url_for(\'logout\') }}">Logout</a>', '<a href="/logout">Logout</a>')
+        template = template.replace('src="{{ url_for(\'serve_image\', review_id=review.review_id) }}"', f'src="/image/{review.review_id}"')
+
+        # Handle optional fields
+        if review.reviewed_at:
+            template = template.replace("{% if review.reviewed_at %}", "").replace("{% endif %}", "")
+            template = template.replace("{{ review.reviewed_at.strftime('%Y-%m-%d %H:%M:%S') }}", review.reviewed_at.strftime('%Y-%m-%d %H:%M:%S'))
+        else:
+            import re
+            template = re.sub(r'{% if review\.reviewed_at %}.*?{% endif %}', '', template, flags=re.DOTALL)
+
+        if review.reviewer_username:
+            template = template.replace("{% if review.reviewer_username %}", "").replace("{% endif %}", "")
+            template = template.replace("{{ review.reviewer_username }}", review.reviewer_username)
+        else:
+            import re
+            template = re.sub(r'{% if review\.reviewer_username %}.*?{% endif %}', '', template, flags=re.DOTALL)
+
+        if review.image_path:
+            template = template.replace("{% if review.image_path %}", "").replace("{% endif %}", "")
+        else:
+            import re
+            template = re.sub(r'{% if review\.image_path %}.*?{% endif %}', '', template, flags=re.DOTALL)
+
+        if review.caption:
+            template = template.replace("{% if review.caption %}", "").replace("{% endif %}", "")
+            template = template.replace("{{ review.caption or '' }}", review.caption)
+            template = template.replace("{{ review.caption }}", review.caption)
+        else:
+            import re
+            template = re.sub(r'{% if review\.caption %}.*?{% endif %}', '', template, flags=re.DOTALL)
+            template = template.replace("{{ review.caption or '' }}", "")
+
+        if review.modifications:
+            template = template.replace("{% if review.modifications %}", "").replace("{% endif %}", "")
+            import json
+            template = template.replace("{{ review.modifications | tojson(indent=2) }}", json.dumps(review.modifications, indent=2))
+        else:
+            import re
+            template = re.sub(r'{% if review\.modifications %}.*?{% endif %}', '', template, flags=re.DOTALL)
+
+        # Handle status-specific content
+        if review.status.value == 'pending':
+            template = template.replace("{% if review.status.value == 'pending' %}", "").replace("{% else %}", "<!--").replace("{% endif %}", "-->")
+        else:
+            import re
+            template = re.sub(r"{% if review\.status\.value == 'pending' %}.*?{% else %}(.*?){% endif %}", r'\1', template, flags=re.DOTALL)
+
+        return HTMLResponse(content=template)
+
+    async def _handle_approval(self, request: Request, review_id: str, status: ApprovalStatus):
         """Handle approval/rejection via API."""
         try:
             if review_id not in self.telegram_bot.reviews:
-                return jsonify({'success': False, 'error': 'Review not found'})
-            
+                return JSONResponse(content={'success': False, 'error': 'Review not found'})
+
             review = self.telegram_bot.reviews[review_id]
-            
+
             if review.status != ApprovalStatus.PENDING:
-                return jsonify({'success': False, 'error': 'Review already processed'})
-            
+                return JSONResponse(content={'success': False, 'error': 'Review already processed'})
+
             # Update review status
             review.status = status
             review.reviewed_at = datetime.now()
-            review.reviewer_username = session.get('username', 'web_user')
-            
+            review.reviewer_username = request.session.get('username', 'web_user')
+
             # Execute callback if provided
             if review.callback:
                 try:
@@ -580,51 +707,50 @@ class WebReviewInterface:
                     asyncio.create_task(review.callback(review, status))
                 except Exception as e:
                     self.logger.error(f"Callback execution failed: {str(e)}")
-            
+
             # Add to history
             self.telegram_bot._add_to_history(review)
-            
+
             self.logger.info(
                 f"Review {status.value} via web interface: {review_id}",
                 extra={'extra_data': {
                     'review_id': review_id,
                     'status': status.value,
-                    'reviewer': session.get('username')
+                    'reviewer': request.session.get('username')
                 }}
             )
-            
-            return jsonify({'success': True})
-            
+
+            return JSONResponse(content={'success': True})
+
         except Exception as e:
             self.logger.error(f"Error handling approval: {str(e)}")
             handle_exception(e, {"component": "web_review_approval"})
-            return jsonify({'success': False, 'error': str(e)})
-    
-    def _handle_modification(self, review_id: str):
+            return JSONResponse(content={'success': False, 'error': str(e)})
+
+    async def _handle_modification(self, request: Request, review_id: str, modify_data: ModifyRequest):
         """Handle modification via API."""
         try:
             if review_id not in self.telegram_bot.reviews:
-                return jsonify({'success': False, 'error': 'Review not found'})
-            
+                return JSONResponse(content={'success': False, 'error': 'Review not found'})
+
             review = self.telegram_bot.reviews[review_id]
-            
+
             if review.status != ApprovalStatus.PENDING:
-                return jsonify({'success': False, 'error': 'Review already processed'})
-            
+                return JSONResponse(content={'success': False, 'error': 'Review already processed'})
+
             # Get modification data
-            data = request.get_json()
-            new_caption = data.get('caption')
-            
+            new_caption = modify_data.caption
+
             if not new_caption:
-                return jsonify({'success': False, 'error': 'Caption is required'})
-            
+                return JSONResponse(content={'success': False, 'error': 'Caption is required'})
+
             # Store original and update
             review.modifications['original_caption'] = review.caption
             review.caption = new_caption
             review.status = ApprovalStatus.MODIFIED
             review.reviewed_at = datetime.now()
-            review.reviewer_username = session.get('username', 'web_user')
-            
+            review.reviewer_username = request.session.get('username', 'web_user')
+
             # Execute callback if provided
             if review.callback:
                 try:
@@ -632,32 +758,33 @@ class WebReviewInterface:
                     asyncio.create_task(review.callback(review, ApprovalStatus.MODIFIED))
                 except Exception as e:
                     self.logger.error(f"Callback execution failed: {str(e)}")
-            
+
             # Add to history
             self.telegram_bot._add_to_history(review)
-            
+
             self.logger.info(
                 f"Review modified via web interface: {review_id}",
                 extra={'extra_data': {
                     'review_id': review_id,
-                    'reviewer': session.get('username'),
+                    'reviewer': request.session.get('username'),
                     'original_caption': review.modifications['original_caption'][:100],
                     'new_caption': new_caption[:100]
                 }}
             )
-            
-            return jsonify({'success': True})
-            
+
+            return JSONResponse(content={'success': True})
+
         except Exception as e:
             self.logger.error(f"Error handling modification: {str(e)}")
             handle_exception(e, {"component": "web_review_modification"})
-            return jsonify({'success': False, 'error': str(e)})
-    
+            return JSONResponse(content={'success': False, 'error': str(e)})
+
     def run(self, host='127.0.0.1', port=5000, debug=False):
-        """Run the Flask application."""
+        """Run the FastAPI application."""
         try:
+            import uvicorn
             self.logger.info(f"Starting web review interface on {host}:{port}")
-            self.app.run(host=host, port=port, debug=debug)
+            uvicorn.run(self.app, host=host, port=port, log_level="info" if debug else "warning")
         except Exception as e:
             self.logger.error(f"Failed to start web interface: {str(e)}")
             raise
@@ -678,7 +805,7 @@ def get_web_interface() -> WebReviewInterface:
 # Convenience function to start the web interface
 def start_web_interface(host='127.0.0.1', port=5000, debug=False):
     """Start the web review interface.
-    
+
     Args:
         host: Host to bind to
         port: Port to bind to

@@ -162,7 +162,7 @@ def test_pre_commit_hooks():
     
     try:
         # Check if pre-commit config file exists
-        config_file = Path(".pre-commit-config.yaml")
+        config_file = Path("../.pre-commit-config.yaml")
         if not config_file.exists():
             print("❌ Pre-commit config file not found")
             return False
@@ -209,7 +209,7 @@ def test_code_quality_tools():
         # Test pyproject.toml configuration
         import tomllib
         
-        with open("pyproject.toml", "rb") as f:
+        with open("../pyproject.toml", "rb") as f:
             config = tomllib.load(f)
         
         # Check for testing dependencies
@@ -369,7 +369,7 @@ def test_phase3_completeness():
     # Check if pyproject.toml has been updated with testing dependencies
     try:
         import tomllib
-        with open("pyproject.toml", "rb") as f:
+        with open("../pyproject.toml", "rb") as f:
             config = tomllib.load(f)
         
         optional_deps = config.get('project', {}).get('optional-dependencies', {})

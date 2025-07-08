@@ -39,27 +39,27 @@ class TestConfigManager:
     def test_get_env_with_default(self):
         """Test getting environment variable with default value."""
         with patch.dict(os.environ, {}, clear=True):
-            result = self.config_manager._get_env("TEST_VAR", "default_value")
+            result = _get_env("TEST_VAR", "default_value")
             assert result == "default_value"
 
     def test_get_env_with_existing_value(self):
         """Test getting existing environment variable."""
         with patch.dict(os.environ, {"TEST_VAR": "test_value"}):
-            result = self.config_manager._get_env("TEST_VAR", "default_value")
+            result = _get_env("TEST_VAR", "default_value")
             assert result == "test_value"
 
     def test_get_env_required_missing(self):
         """Test getting required environment variable that's missing."""
         with patch.dict(os.environ, {}, clear=True):
             with pytest.raises(ConfigurationError, match="Required environment variable 'TEST_VAR' is not set"):
-                self.config_manager._get_env("TEST_VAR", required=True)
+                _get_env("TEST_VAR", required=True)
 
     def test_get_bool_env_true_values(self):
         """Test boolean environment variable parsing for true values."""
         true_values = ["true", "True", "TRUE", "1", "yes", "YES", "on", "ON"]
         for value in true_values:
             with patch.dict(os.environ, {"TEST_BOOL": value}):
-                result = self.config_manager._get_bool_env("TEST_BOOL")
+                result = _get_bool_env("TEST_BOOL")
                 assert result is True, f"Failed for value: {value}"
 
     def test_get_bool_env_false_values(self):
@@ -67,43 +67,43 @@ class TestConfigManager:
         false_values = ["false", "False", "FALSE", "0", "no", "NO", "off", "OFF", ""]
         for value in false_values:
             with patch.dict(os.environ, {"TEST_BOOL": value}):
-                result = self.config_manager._get_bool_env("TEST_BOOL")
+                result = _get_bool_env("TEST_BOOL")
                 assert result is False, f"Failed for value: {value}"
 
     def test_get_int_env_valid(self):
         """Test integer environment variable parsing with valid values."""
         with patch.dict(os.environ, {"TEST_INT": "42"}):
-            result = self.config_manager._get_int_env("TEST_INT", 0)
+            result = _get_int_env("TEST_INT", 0)
             assert result == 42
 
     def test_get_int_env_invalid(self):
         """Test integer environment variable parsing with invalid values."""
         with patch.dict(os.environ, {"TEST_INT": "not_a_number"}):
             with pytest.raises(ConfigurationError, match="must be an integer"):
-                self.config_manager._get_int_env("TEST_INT", 0)
+                _get_int_env("TEST_INT", 0)
 
     def test_get_float_env_valid(self):
         """Test float environment variable parsing with valid values."""
         with patch.dict(os.environ, {"TEST_FLOAT": "3.14"}):
-            result = self.config_manager._get_float_env("TEST_FLOAT", 0.0)
+            result = _get_float_env("TEST_FLOAT", 0.0)
             assert result == 3.14
 
     def test_get_float_env_invalid(self):
         """Test float environment variable parsing with invalid values."""
         with patch.dict(os.environ, {"TEST_FLOAT": "not_a_number"}):
             with pytest.raises(ConfigurationError, match="must be a float"):
-                self.config_manager._get_float_env("TEST_FLOAT", 0.0)
+                _get_float_env("TEST_FLOAT", 0.0)
 
     def test_get_list_env(self):
         """Test list environment variable parsing."""
         with patch.dict(os.environ, {"TEST_LIST": "item1,item2,item3"}):
-            result = self.config_manager._get_list_env("TEST_LIST", [])
+            result = _get_list_env("TEST_LIST", [])
             assert result == ["item1", "item2", "item3"]
 
     def test_get_list_env_with_spaces(self):
         """Test list environment variable parsing with spaces."""
         with patch.dict(os.environ, {"TEST_LIST": "item1, item2 , item3"}):
-            result = self.config_manager._get_list_env("TEST_LIST", [])
+            result = _get_list_env("TEST_LIST", [])
             assert result == ["item1", "item2", "item3"]
 
     def test_load_config_minimal(self):

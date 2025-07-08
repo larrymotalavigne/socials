@@ -1,19 +1,19 @@
-[build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "socials"
 version = "0.1.0"
 description = "AI-powered social media content generator and publisher"
-requires-python = ">=3.8"
+requires-python = ">=3.12"
 dependencies = [
     "openai>=1.0.0",
     "python-dotenv>=1.0.0",
     "requests>=2.25.0",
     "apscheduler>=3.10.0",
     "python-telegram-bot>=20.0",
-    "flask>=2.3.0",
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "python-multipart>=0.0.6",
+    "jinja2>=3.1.0",
+    "itsdangerous>=2.1.0",
     "pillow>=9.0.0",
     "cryptography>=3.4.0",
     "pydantic>=2.0.0",
@@ -50,17 +50,7 @@ monitoring = [
 
 readme = ["README.md"]
 license = ["MIT"]
-classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-]
+classifiers = []
 
 [tool.setuptools.packages.find]
 include = ["generator*", "publisher*", "reviewer*", "scheduler*", "utils*"]
@@ -193,7 +183,9 @@ module = [
     "openai.*",
     "apscheduler.*",
     "telegram.*",
-    "flask.*",
+    "fastapi.*",
+    "uvicorn.*",
+    "starlette.*",
     "PIL.*",
     "requests.*",
 ]

@@ -18,7 +18,7 @@ from publisher.instagram_publisher import get_instagram_publisher
 from utils.exceptions import (
     handle_exception,
     get_error_stats,
-    ConfigurationError
+    ConfigurationError, PublishingError
 )
 from utils.logger import get_logger, setup_logging
 

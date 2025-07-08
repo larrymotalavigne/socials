@@ -162,6 +162,56 @@ class AppConfig:
             raise ConfigurationError("Caption generator must be either 'openai' or 'ollama'")
 
 
+def _get_env(key: str, default: Any = None, required: bool = False) -> Any:
+    """Get environment variable with validation.
+
+    Args:
+        key: Environment variable key
+        default: Default value if not found
+        required: Whether the variable is required
+
+    Returns:
+        Environment variable value
+
+    Raises:
+        ConfigurationError: If required variable is missing
+    """
+    value = os.getenv(key, default)
+    if required and value is None:
+        raise ConfigurationError(f"Required environment variable '{key}' is not set")
+    return value
+
+
+def _get_bool_env(key: str, default: bool = False) -> bool:
+    """Get boolean environment variable."""
+    value = _get_env(key, str(default))
+    return value.lower() in ("true", "1", "yes", "on")
+
+
+def _get_int_env(key: str, default: int) -> int:
+    """Get integer environment variable."""
+    value = _get_env(key, str(default))
+    try:
+        return int(value)
+    except ValueError:
+        raise ConfigurationError(f"Environment variable '{key}' must be an integer, got: {value}")
+
+
+def _get_float_env(key: str, default: float) -> float:
+    """Get float environment variable."""
+    value = _get_env(key, str(default))
+    try:
+        return float(value)
+    except ValueError:
+        raise ConfigurationError(f"Environment variable '{key}' must be a float, got: {value}")
+
+
+def _get_list_env(key: str, default: List[str]) -> List[str]:
+    """Get list environment variable (comma-separated)."""
+    value = _get_env(key, ",".join(default))
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
 class ConfigManager:
     """Configuration manager for loading and validating configuration."""
 
@@ -186,51 +236,6 @@ class ConfigManager:
                     load_dotenv(env_path)
                     break
 
-    def _get_env(self, key: str, default: Any = None, required: bool = False) -> Any:
-        """Get environment variable with validation.
-
-        Args:
-            key: Environment variable key
-            default: Default value if not found
-            required: Whether the variable is required
-
-        Returns:
-            Environment variable value
-
-        Raises:
-            ConfigurationError: If required variable is missing
-        """
-        value = os.getenv(key, default)
-        if required and value is None:
-            raise ConfigurationError(f"Required environment variable '{key}' is not set")
-        return value
-
-    def _get_bool_env(self, key: str, default: bool = False) -> bool:
-        """Get boolean environment variable."""
-        value = self._get_env(key, str(default))
-        return value.lower() in ("true", "1", "yes", "on")
-
-    def _get_int_env(self, key: str, default: int) -> int:
-        """Get integer environment variable."""
-        value = self._get_env(key, str(default))
-        try:
-            return int(value)
-        except ValueError:
-            raise ConfigurationError(f"Environment variable '{key}' must be an integer, got: {value}")
-
-    def _get_float_env(self, key: str, default: float) -> float:
-        """Get float environment variable."""
-        value = self._get_env(key, str(default))
-        try:
-            return float(value)
-        except ValueError:
-            raise ConfigurationError(f"Environment variable '{key}' must be a float, got: {value}")
-
-    def _get_list_env(self, key: str, default: List[str]) -> List[str]:
-        """Get list environment variable (comma-separated)."""
-        value = self._get_env(key, ",".join(default))
-        return [item.strip() for item in value.split(",") if item.strip()]
-
     def load_config(self) -> AppConfig:
         """Load and validate configuration.
 
@@ -242,76 +247,84 @@ class ConfigManager:
         """
         try:
             # Determine environment
-            env_name = self._get_env("ENVIRONMENT", "development")
+            env_name = _get_env("ENVIRONMENT", "development")
             try:
                 environment = Environment(env_name.lower())
             except ValueError:
                 raise ConfigurationError(f"Invalid environment: {env_name}")
 
-            # Load OpenAI configuration
+            # Determine caption generator first to conditionally load OpenAI config
+            caption_generator = _get_env("CAPTION_GENERATOR", "openai")
+
+            # Load OpenAI configuration (only required if using OpenAI)
+            openai_api_key = _get_env("OPENAI_API_KEY", required=(caption_generator == "openai"))
+            if not openai_api_key and caption_generator != "openai":
+                # Use a placeholder when not using OpenAI and no key is provided
+                openai_api_key = "not_required_for_" + caption_generator
+
             openai_config = OpenAIConfig(
-                api_key=self._get_env("OPENAI_API_KEY", required=True),
-                model_chat=self._get_env("OPENAI_MODEL_CHAT", "gpt-4"),
-                model_image=self._get_env("OPENAI_MODEL_IMAGE", "dall-e-3"),
-                max_tokens=self._get_int_env("OPENAI_MAX_TOKENS", 150),
-                temperature=self._get_float_env("OPENAI_TEMPERATURE", 0.8),
-                image_size=self._get_env("OPENAI_IMAGE_SIZE", "1024x1024"),
-                image_quality=self._get_env("OPENAI_IMAGE_QUALITY", "standard")
+                api_key=openai_api_key,
+                model_chat=_get_env("OPENAI_MODEL_CHAT", "gpt-4"),
+                model_image=_get_env("OPENAI_MODEL_IMAGE", "dall-e-3"),
+                max_tokens=_get_int_env("OPENAI_MAX_TOKENS", 150),
+                temperature=_get_float_env("OPENAI_TEMPERATURE", 0.8),
+                image_size=_get_env("OPENAI_IMAGE_SIZE", "1024x1024"),
+                image_quality=_get_env("OPENAI_IMAGE_QUALITY", "standard")
             )
 
             # Load Ollama configuration
             ollama_config = OllamaConfig(
-                base_url=self._get_env("OLLAMA_BASE_URL", "http://localhost:11434"),
-                model=self._get_env("OLLAMA_MODEL", "llama2"),
-                timeout=self._get_int_env("OLLAMA_TIMEOUT", 30),
-                temperature=self._get_float_env("OLLAMA_TEMPERATURE", 0.8),
-                max_tokens=self._get_int_env("OLLAMA_MAX_TOKENS", 150)
+                base_url=_get_env("OLLAMA_BASE_URL", "http://localhost:11434"),
+                model=_get_env("OLLAMA_MODEL", "llama2"),
+                timeout=_get_int_env("OLLAMA_TIMEOUT", 30),
+                temperature=_get_float_env("OLLAMA_TEMPERATURE", 0.8),
+                max_tokens=_get_int_env("OLLAMA_MAX_TOKENS", 150)
             )
 
             # Load Instagram configuration
             instagram_config = InstagramConfig(
-                access_token=self._get_env("INSTAGRAM_ACCESS_TOKEN"),
-                app_id=self._get_env("INSTAGRAM_APP_ID"),
-                app_secret=self._get_env("INSTAGRAM_APP_SECRET"),
-                user_id=self._get_env("INSTAGRAM_USER_ID")
+                access_token=_get_env("INSTAGRAM_ACCESS_TOKEN"),
+                app_id=_get_env("INSTAGRAM_APP_ID"),
+                app_secret=_get_env("INSTAGRAM_APP_SECRET"),
+                user_id=_get_env("INSTAGRAM_USER_ID")
             )
 
             # Load Telegram configuration
             telegram_config = TelegramConfig(
-                bot_token=self._get_env("TELEGRAM_BOT_TOKEN"),
-                chat_id=self._get_env("TELEGRAM_CHAT_ID")
+                bot_token=_get_env("TELEGRAM_BOT_TOKEN"),
+                chat_id=_get_env("TELEGRAM_CHAT_ID")
             )
 
             # Load scheduling configuration
             scheduling_config = SchedulingConfig(
-                enabled=self._get_bool_env("SCHEDULING_ENABLED", False),
-                interval_hours=self._get_int_env("SCHEDULING_INTERVAL_HOURS", 24),
-                max_posts_per_day=self._get_int_env("SCHEDULING_MAX_POSTS_PER_DAY", 3),
-                timezone=self._get_env("SCHEDULING_TIMEZONE", "UTC")
+                enabled=_get_bool_env("SCHEDULING_ENABLED", False),
+                interval_hours=_get_int_env("SCHEDULING_INTERVAL_HOURS", 24),
+                max_posts_per_day=_get_int_env("SCHEDULING_MAX_POSTS_PER_DAY", 3),
+                timezone=_get_env("SCHEDULING_TIMEZONE", "UTC")
             )
 
             # Load logging configuration
             logging_config = LoggingConfig(
-                level=self._get_env("LOG_LEVEL", "INFO"),
-                format=self._get_env("LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"),
-                file_path=self._get_env("LOG_FILE_PATH"),
-                max_file_size=self._get_int_env("LOG_MAX_FILE_SIZE", 10 * 1024 * 1024),
-                backup_count=self._get_int_env("LOG_BACKUP_COUNT", 5)
+                level=_get_env("LOG_LEVEL", "INFO"),
+                format=_get_env("LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"),
+                file_path=_get_env("LOG_FILE_PATH"),
+                max_file_size=_get_int_env("LOG_MAX_FILE_SIZE", 10 * 1024 * 1024),
+                backup_count=_get_int_env("LOG_BACKUP_COUNT", 5)
             )
 
             # Load content configuration
             content_config = ContentConfig(
-                output_directory=self._get_env("CONTENT_OUTPUT_DIR", "generated_content"),
-                image_format=self._get_env("CONTENT_IMAGE_FORMAT", "png"),
-                max_caption_length=self._get_int_env("CONTENT_MAX_CAPTION_LENGTH", 2200),
-                hashtag_count=self._get_int_env("CONTENT_HASHTAG_COUNT", 10),
-                content_themes=self._get_list_env("CONTENT_THEMES", ["nature", "lifestyle", "inspiration"])
+                output_directory=_get_env("CONTENT_OUTPUT_DIR", "generated_content"),
+                image_format=_get_env("CONTENT_IMAGE_FORMAT", "png"),
+                max_caption_length=_get_int_env("CONTENT_MAX_CAPTION_LENGTH", 2200),
+                hashtag_count=_get_int_env("CONTENT_HASHTAG_COUNT", 10),
+                content_themes=_get_list_env("CONTENT_THEMES", ["nature", "lifestyle", "inspiration"])
             )
 
             # Create main configuration
             self._config = AppConfig(
                 environment=environment,
-                debug=self._get_bool_env("DEBUG", False),
+                debug=_get_bool_env("DEBUG", False),
                 openai=openai_config,
                 ollama=ollama_config,
                 instagram=instagram_config,
@@ -319,10 +332,10 @@ class ConfigManager:
                 scheduling=scheduling_config,
                 logging=logging_config,
                 content=content_config,
-                retry_attempts=self._get_int_env("RETRY_ATTEMPTS", 3),
-                retry_delay=self._get_float_env("RETRY_DELAY", 1.0),
-                request_timeout=self._get_int_env("REQUEST_TIMEOUT", 30),
-                caption_generator=self._get_env("CAPTION_GENERATOR", "openai")
+                retry_attempts=_get_int_env("RETRY_ATTEMPTS", 3),
+                retry_delay=_get_float_env("RETRY_DELAY", 1.0),
+                request_timeout=_get_int_env("REQUEST_TIMEOUT", 30),
+                caption_generator=caption_generator
             )
 
             return self._config
